@@ -7,17 +7,15 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.urlencoded({ extended: true }));
 
-// Хранилище активных подключений к Твичу, чтобы не подключаться по сто раз к одному каналу
 const activeClients = {}; 
 const TRIGGER_COMMAND = '+';
 
 // ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ
-const db = new sqlite3.Database('./giveaway_v2.db', (err) => {
+const db = new sqlite3.Database('/tmp/giveaway_v2.db', (err) => {
     if (err) console.error('Ошибка БД:', err.message);
     else console.log('База данных успешно подключена.');
 });
 
-// Создаем общую таблицу. Теперь у каждого участника есть привязка к стримеру (streamer_channel)
 db.run(`CREATE TABLE IF NOT EXISTS participants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     streamer_channel TEXT,
@@ -26,13 +24,11 @@ db.run(`CREATE TABLE IF NOT EXISTS participants (
     UNIQUE(streamer_channel, username)
 )`);
 
-// Переменная для хранения победителей (для каждого стримера свой)
 const currentWinners = {};
 
-// Функция для запуска Твич-клиента для конкретного стримера
 function connectToTwitch(channelName) {
     const channel = channelName.toLowerCase().trim();
-    if (activeClients[channel]) return; // Если уже подключен, ничего не делаем
+    if (activeClients[channel]) return;
 
     const client = new tmi.Client({
         options: { debug: false },
@@ -51,7 +47,7 @@ function connectToTwitch(channelName) {
 
         if (message.trim() === TRIGGER_COMMAND) {
             const username = tags['display-name'] || tags.username;
-            const targetChannel = ch.replace('#', ''); // убираем решетку из имени канала
+            const targetChannel = ch.replace('#', '');
 
             db.run(
                 `INSERT OR IGNORE INTO participants (streamer_channel, username) VALUES (?, ?)`, 
@@ -64,7 +60,6 @@ function connectToTwitch(channelName) {
     });
 }
 
-// 1. ГЛАВНАЯ СТРАНИЦА — ВХОД ДЛЯ СТРИМЕРА
 app.get('/', (req, res) => {
     res.send(`
         <!DOCTYPE html>
@@ -97,21 +92,16 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Обработка ввода ника и перенаправление на личную страницу
 app.post('/login', (req, res) => {
     const channel = req.body.twitch_username.toLowerCase().trim();
     if (!channel) return res.redirect('/');
     res.redirect(`/streamer/${channel}`);
 });
 
-// 2. ЛИЧНАЯ ПАНЕЛЬ УПРАВЛЕНИЯ ДЛЯ СТРИМЕРА
 app.get('/streamer/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
-    
-    // Автоматически подключаем бота к этому каналу, если он еще не там
     connectToTwitch(channel);
 
-    // Достаем участников только для этого стримера
     db.all(`SELECT username, timestamp FROM participants WHERE streamer_channel = ? ORDER BY id DESC`, [channel], (err, rows) => {
         if (err) return res.status(500).send(err.message);
 
@@ -148,9 +138,7 @@ app.get('/streamer/:channel', (req, res) => {
                     th { background: #26262c; color: #adadb8; }
                 </style>
                 <script>
-                    // Автоматически обновлять страницу каждые 6 секунд, чтобы видеть новых участников чата
                     setInterval(() => {
-                        // Обновляем только если юзер не крутит рулетку прямо сейчас
                         if(!window.location.search.includes('spinning')) {
                             location.reload();
                         }
@@ -187,7 +175,6 @@ app.get('/streamer/:channel', (req, res) => {
     });
 });
 
-// КРУТИТЬ РУЛЕТКУ ДЛЯ КОНКРЕТНОГО СТРИМЕРА
 app.post('/spin/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
     db.all(`SELECT username FROM participants WHERE streamer_channel = ?`, [channel], (err, rows) => {
@@ -201,7 +188,6 @@ app.post('/spin/:channel', (req, res) => {
     });
 });
 
-// СБРОС ТАБЛИЦЫ ДЛЯ КОНКРЕТНОГО СТРИМЕРА
 app.post('/clear/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
     db.run(`DELETE FROM participants WHERE streamer_channel = ?`, [channel], (err) => {
@@ -210,3 +196,5 @@ app.post('/clear/:channel', (req, res) => {
         res.redirect(`/streamer/${channel}`);
     });
 });
+
+app.listen(PORT, () => console.log(`Универсальный сервер запущен на порту ${PORT}`));
