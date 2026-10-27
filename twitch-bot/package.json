@@ -1,0 +1,13 @@
+{
+  "name": "twitch-24-7-giveaway",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7",
+    "tmi.js": "^1.8.5"
+  }
+}
