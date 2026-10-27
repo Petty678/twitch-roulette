@@ -207,3 +207,6 @@ app.post('/clear/:channel', (req, res) => {
     db.run(`DELETE FROM participants WHERE streamer_channel = ?`, [channel], (err) => {
         if (err) console.error(err.message);
         currentWinners[channel] = null;
+        res.redirect(`/streamer/${channel}`);
+    });
+});
