@@ -101,14 +101,14 @@ app.get('/streamer/:channel', (req, res) => {
             const participantsNames = rows.map(r => r.username);
 
             let tableRows = rows.map((row, index) => 
-                `<tr><td>${index + 1}</td><td>${row.username}</td><td>${new Date(row.timestamp).toLocaleString()}</td></tr>`
+                \`<tr><td>\${index + 1}</td><td>\${row.username}</td><td>\${new Date(row.timestamp).toLocaleString()}</td></tr>\`
             ).join('');
 
-            res.send(`
+            res.send(\`
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Twitch Розыгрыши: ${channel}</title>
+                    <title>Twitch Розыгрыши: \${channel}</title>
                     <meta charset="utf-8">
                     <style>
                         body { font-family: 'Segoe UI', Arial, sans-serif; background: #141416; color: #efeff1; padding: 20px; text-align: center; }
@@ -140,10 +140,10 @@ app.get('/streamer/:channel', (req, res) => {
                 <body>
                     <div class="container">
                         <h1>Twitch Розыгрыши</h1>
-                        <p>Вы вошли как канал: <strong style="color: #9146ff;">${channel}</strong> | Участников в базе: <strong id="count">${rows.length}</strong></p>
+                        <p>Вы вошли как канал: <strong style="color: #9146ff;">\${channel}</strong> | Участников в базе: <strong id="count">\${rows.length}</strong></p>
                         
                         <div class="setup-panel">
-                            <form action="/update-settings/${channel}" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
+                            <form action="/update-settings/\${channel}" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
                                 <label>Ключ чата:</label>
                                 <input type="text" name="command" value="${currentKeyword}" style="width:70px; text-align:center;" required>
                                 <button type="submit" style="padding:8px 12px; font-size:13px; flex:none; background:#2d2d30; color:white;">Изменить</button>
@@ -152,7 +152,7 @@ app.get('/streamer/:channel', (req, res) => {
                             <label style="margin-left:15px;">Вариант розыгрыша:</label>
                             <select id="drawMode" onchange="toggleDrawMode()">
                                 <option value="classic">Обычная рулетка (Быстро)</option>
-                                <option value="wheel_single">🎡 Колесо удачи (обычное)</option>
+                                <option value="wheel_single">🎡 Колесо удачи (Обычный)</option>
                                 <option value="wheel_elimination">🎡 Колесо удачи (На выбывание)</option>
                             </select>
                         </div>
@@ -166,15 +166,14 @@ app.get('/streamer/:channel', (req, res) => {
 
                         <div class="actions">
                             <button class="btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ВЫБРАТЬ ПОБЕДИТЕЛЯ</button>
-                            <form action="/clear/${channel}" method="POST" onsubmit="return confirm('Очистить список участников?')" style="flex:1; display:flex;">
+                            <form action="/clear/\${channel}" method="POST" onsubmit="return confirm('Очистить список участников?')" style="flex:1; display:flex;">
                                 <button type="submit" class="btn-clear">Очистить список</button>
                             </form>
                         </div>
 
                         <table id="participantsTable">
-                            <thead>
-                                <tr><th style="width: 50px;">#</th><th>Никнейм зрителя</th><th>Время записи</th></tr>
-                            \${tableRows}
+                            <tbody>
+                                ${tableRows}
                             </tbody>
                         </table>
                         <br>
@@ -182,7 +181,7 @@ app.get('/streamer/:channel', (req, res) => {
                     </div>
 
                     <script>
-                        let participants = \${JSON.stringify(participantsNames)};
+                        let participants = ${JSON.stringify(participantsNames)};
                         
                         const canvas = document.getElementById('wheelCanvas');
                         const ctx = canvas.getContext('2d');
@@ -310,7 +309,7 @@ app.get('/streamer/:channel', (req, res) => {
                     </script>
                 </body>
                 </html>
-            \`);
+            `);
         })
         .catch(err => res.status(500).send(err.message));
 });
@@ -344,3 +343,4 @@ app.post('/clear/:channel', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
+                        
