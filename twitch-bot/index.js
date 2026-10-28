@@ -18,11 +18,12 @@ const db = new Client({
 
 // Настройка структуры базы данных (данные хранятся вечно, пока вы сами не нажмете кнопку "Очистить")
 db.connect()
-    .then(() => {
+    .then(async () => {
         console.log('База данных успешно подключена.');
+        // Временная команда: сносим старую заклинившую таблицу
+        await db.query('DROP TABLE IF EXISTS participants');
         return db.query('CREATE TABLE IF NOT EXISTS participants (id SERIAL PRIMARY KEY, room_id TEXT, username TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(room_id, username))');
     })
-    .catch(err => console.error('Ошибка конфигурации БД:', err.message));
 
 function connectToTwitch(channelName) {
     const channel = channelName.toLowerCase().trim();
