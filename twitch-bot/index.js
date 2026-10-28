@@ -5,10 +5,11 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
 
 const activeClients = {}; 
-const TRIGGER_COMMAND = '+';
+const settings = {}; 
 
 // ИНИЦИАЛИЗАЦИЯ ОБЛАЧНОЙ БАЗЫ ДАННЫХ POSTGRES
 const db = new Client({
@@ -18,7 +19,7 @@ const db = new Client({
 
 db.connect()
     .then(() => {
-        console.log('Облачная база данных PostgreSQL успешно подключена!');
+        console.log('БД успешно подключена');
         return db.query(`CREATE TABLE IF NOT EXISTS participants (
             id SERIAL PRIMARY KEY,
             streamer_channel TEXT,
@@ -29,31 +30,25 @@ db.connect()
     })
     .catch(err => console.error('Ошибка подключения к БД:', err.message));
 
-const currentWinners = {};
-
 function connectToTwitch(channelName) {
     const channel = channelName.toLowerCase().trim();
     if (activeClients[channel]) return;
 
-    const client = new tmi.Client({
-        options: { debug: false },
-        channels: [channel]
-    });
+    if (!settings[channel]) {
+        settings[channel] = { command: '+' };
+    }
 
-    client.connect().then(() => {
-        console.log(`[Twitch] Успешно подключились к каналу: ${channel}`);
-        activeClients[channel] = client;
-    }).catch(err => {
-        console.error(`[Twitch] Ошибка подключения к ${channel}:`, err);
-    });
+    const client = new tmi.Client({ channels: [channel] });
+    client.connect().catch(console.error);
+    activeClients[channel] = client;
 
     client.on('message', (ch, tags, message, self) => {
         if (self) return;
+        const targetChannel = ch.replace('#', '');
+        const currentCommand = settings[targetChannel]?.command || '+';
 
-        if (message.trim() === TRIGGER_COMMAND) {
+        if (message.trim() === currentCommand) {
             const username = tags['display-name'] || tags.username;
-            const targetChannel = ch.replace('#', '');
-
             db.query(
                 `INSERT INTO participants (streamer_channel, username) VALUES ($1, $2) ON CONFLICT DO NOTHING`, 
                 [targetChannel, username]
@@ -67,26 +62,24 @@ app.get('/', (req, res) => {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Twitch Рулетка 24/7</title>
+            <title>Twitch Розыгрыши Комбайн</title>
             <meta charset="utf-8">
             <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; background: #0e0e10; color: #efeff1; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                .login-box { background: #1f1f23; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 100%; max-width: 400px; border-top: 4px solid #9146ff; }
-                h1 { margin-bottom: 20px; font-size: 24px; color: #9146ff; }
-                input { width: 100%; padding: 12px; margin: 15px 0; border-radius: 6px; border: 2px solid #3a3a3c; background: #18181b; color: white; font-size: 16px; box-sizing: border-box; }
-                input:focus { border-color: #9146ff; outline: none; }
-                button { width: 100%; background: #9146ff; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-                button:hover { background: #772ce8; }
-                p { color: #adadb8; font-size: 14px; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0f0c; color: #e1e6e2; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .login-box { background: #141a16; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.7); width: 100%; max-width: 400px; border-top: 4px solid #1db954; }
+                h1 { margin-bottom: 20px; font-size: 24px; color: #1db954; }
+                input { width: 100%; padding: 12px; margin: 15px 0; border-radius: 6px; border: 2px solid #222c25; background: #0b0f0c; color: white; font-size: 16px; box-sizing: border-box; }
+                input:focus { border-color: #1db954; outline: none; }
+                button { width: 100%; background: #1db954; color: #0b0f0c; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+                button:hover { background: #1ed760; }
             </style>
         </head>
         <body>
             <div class="login-box">
-                <h1>Twitch Розыгрыши 24/7</h1>
-                <p>Введите ваш ник на Твиче, чтобы запустить сбор участников и открыть рулетку</p>
+                <h1>Twitch Giveaways Pro</h1>
                 <form action="/login" method="POST">
-                    <input type="text" name="twitch_username" placeholder="Ваш никнейм (например: welghardi)" required autocomplete="off">
-                    <button type="submit">Войти в панель</button>
+                    <input type="text" name="twitch_username" placeholder="Никнейм канала (например: welghardi)" required autocomplete="off">
+                    <button type="submit">Войти в комбайн</button>
                 </form>
             </div>
         </body>
@@ -104,104 +97,89 @@ app.get('/streamer/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
     connectToTwitch(channel);
 
+    if (!settings[channel]) settings[channel] = { command: '+' };
+
     db.query(`SELECT username, timestamp FROM participants WHERE streamer_channel = $1 ORDER BY id DESC`, [channel])
         .then(result => {
-            const rows = result.rows;
-            let tableRows = rows.map((row, index) => 
-                `<tr><td>${index + 1}</td><td>${row.username}</td><td>${new Date(row.timestamp).toLocaleString()}</td></tr>`
-            ).join('');
-
-            let winner = currentWinners[channel];
-            let winnerBlock = winner 
-                ? `<div class="winner-box">🎉 ПОБЕДИТЕЛЬ: <span>${winner}</span> 🎉</div>` 
-                : `<div class="winner-box no-winner">Победитель еще не выбран</div>`;
+            const participantsData = result.rows.map(r => ({ name: r.username, time: new Date(r.timestamp).toLocaleString() }));
+            const participantsNames = participantsData.map(p => p.name);
 
             res.send(`
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Панель: ${channel}</title>
+                    <title>Комбайн: ${channel}</title>
                     <meta charset="utf-8">
                     <style>
-                        body { font-family: 'Segoe UI', Arial, sans-serif; background: #141416; color: #efeff1; padding: 20px; text-align: center; }
-                        .container { max-width: 800px; margin: 0 auto; }
-                        h1 { color: #9146ff; }
-                        .winner-box { background: #1f1f23; border: 3px solid #9146ff; padding: 20px; margin: 20px auto; border-radius: 12px; max-width: 500px; font-size: 24px; font-weight: bold; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4); }
-                        .winner-box span { color: #00ff7f; font-size: 36px; display: block; margin-top: 10px; text-shadow: 0 0 10px rgba(0,255,127,0.5); }
-                        .no-winner { border-color: #3a3a3c; color: #adadb8; font-size: 18px; }
-                        .actions { margin: 30px 0; display: flex; justify-content: center; gap: 15px; }
-                        button { font-size: 16px; font-weight: bold; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-                        .btn-spin { background: #9146ff; color: white; }
-                        .btn-spin:hover { background: #772ce8; }
-                        .btn-clear { background: #eb0400; color: white; }
-                        .btn-clear:hover { background: #ff3b30; }
-                        table { margin: 20px auto; border-collapse: collapse; width: 100%; background: #1f1f23; border-radius: 8px; overflow: hidden; }
-                        th, td { padding: 12px; border: 1px solid #26262c; text-align: left; }
-                        th { background: #26262c; color: #adadb8; }
+                        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0f0c; color: #e1e6e2; margin: 0; padding: 20px; display: flex; gap: 20px; height: 95vh; box-sizing: border-box; }
+                        .column { background: #141a16; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; border: 1px solid #222c25; box-sizing: border-box; }
+                        
+                        .col-left { flex: 1; max-width: 300px; }
+                        .col-main { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+                        .col-right { flex: 1; max-width: 320px; }
+
+                        h2 { color: #1db954; margin-top: 0; font-size: 20px; border-bottom: 1px solid #222c25; padding-bottom: 10px; width: 100%; }
+                        input, select, textarea { background: #0b0f0c; border: 1px solid #222c25; color: white; padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; margin-bottom: 15px; }
+                        input:focus, select:focus { border-color: #1db954; outline: none; }
+                        
+                        button { background: #1db954; color: #0b0f0c; border: none; padding: 12px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; transition: 0.2s; margin-bottom: 10px; }
+                        button:hover { background: #1ed760; }
+                        .btn-danger { background: #eb0400; color: white; }
+                        .btn-danger:hover { background: #ff3b30; }
+
+                        .list-container { flex: 1; overflow-y: auto; background: #0b0f0c; border-radius: 6px; padding: 10px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
+                        .user-item { padding: 8px; border-bottom: 1px solid #222c25; cursor: pointer; }
+                        .user-item:hover { background: #141a16; color: #1db954; }
+
+                        .timer-box { font-size: 48px; font-weight: bold; color: #eb0400; margin: 15px 0; text-shadow: 0 0 10px rgba(235,4,0,0.3); }
+                        .winner-display { font-size: 32px; font-weight: bold; color: #1db954; margin: 15px 0; text-align: center; }
+
+                        .canvas-container { position: relative; width: 350px; height: 350px; margin-bottom: 20px; }
+                        canvas { border-radius: 50%; box-shadow: 0 0 20px rgba(0,0,0,0.6); }
+                        .pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid #1db954; z-index: 10; }
                     </style>
-                    <script>
-                        setInterval(() => {
-                            if(!window.location.search.includes('spinning')) {
-                                location.reload();
-                            }
-                        }, 6000);
-                    </script>
                 </head>
                 <body>
-                    <div class="container">
-                        <h1>Круглосуточный розыгрыш Твич</h1>
-                        <p>Вы вошли как канал: <strong style="color: #9146ff;">${channel}</strong> | Участников в базе: <strong>${rows.length}</strong></p>
-                        <p style="font-size: 13px; color: #adadb8;">Зрителям нужно написать в чат <strong style="color: #00ff7f;">+</strong> для участия</p>
+                    <!-- ЛЕВАЯ КОЛОНКА -->
+                    <div class="column col-left">
+                        <h2>Настройки</h2>
+                        <form action="/update-settings/${channel}" method="POST">
+                            <label>Ключевое слово для чата:</label>
+                            <input type="text" name="command" value="${settings[channel].command}" required>
+                            <button type="submit">Применить ключ</button>
+                        </form>
                         
-                        ${winnerBlock}
+                        <label>Режим рулетки:</label>
+                        <select id="wheelMode">
+                            <option value="single">С первой прокрутки (Один победитель)</option>
+                            <option value="elimination">На выбывание (До последнего)</option>
+                        </select>
 
-                        <div class="actions">
-                            <form action="/spin/${channel}" method="POST">
-                                <button type="submit" class="btn-spin">🎰 КРУТИТЬ РУЛЕТКУ</button>
-                            </form>
-                            <form action="/clear/${channel}" method="POST" onsubmit="return confirm('Очистить список участников ТОЛЬКО для вашего канала?')">
-                                <button type="submit" class="btn-clear">Очистить мой список</button>
-                            </form>
+                        <label>Время прокрутки (сек):</label>
+                        <input type="number" id="spinTime" value="5" min="2" max="20">
+
+                        <label>Ручной импорт (.txt список):</label>
+                        <textarea id="txtImport" rows="4" placeholder="Вставьте ники, каждый с новой строки..."></textarea>
+                        <button onclick="importUsers()">Загрузить из текста</button>
+
+                        <form action="/clear/${channel}" method="POST" onsubmit="return confirm('Вы уверены, что хотите очистить всю базу данных?')">
+                            <button type="submit" class="btn-danger">Очистить базу данных</button>
+                        </form>
+                    </div>
+
+                    <!-- СРЕДНЯЯ КОЛОНКА -->
+                    <div class="column col-main">
+                        <h2>Розыгрыш и Верификация</h2>
+                        <div class="winner-display" id="winnerOutput">Готовы к старту</div>
+                        
+                        <div style="text-align: center; width: 100%;">
+                            <label>Время на ответ победителя (сек):</label>
+                            <input type="number" id="timerSetup" value="30" style="width: 80px; margin-bottom:0; text-align:center;">
+                            <button onclick="startVerificationTimer()" style="width: auto; padding: 10px 20px; margin-left: 10px;">⏱ Запустить таймер</button>
+                            <div class="timer-box" id="timerDisplay">00:00</div>
                         </div>
 
-                        <table>
-                            <tr><th style="width: 50px;">#</th><th>Никнейм зрителя</th><th>Время записи</th></tr>
-                            ${tableRows}
-                        </table>
-                        <br>
-                        <a href="/" style="color: #adadb8; text-decoration: none; font-size: 14px;">← Сменить стримера / Выйти</a>
-                    </div>
-                </body>
-                </html>
-            `);
-        })
-        .catch(err => res.status(500).send(err.message));
-});
-
-app.post('/spin/:channel', (req, res) => {
-    const channel = req.params.channel.toLowerCase().trim();
-    db.query(`SELECT username FROM participants WHERE streamer_channel = $1`, [channel])
-        .then(result => {
-            const rows = result.rows;
-            if (rows.length === 0) {
-                currentWinners[channel] = "Нет участников!";
-            } else {
-                const randomIndex = Math.floor(Math.random() * rows.length);
-                currentWinners[channel] = rows[randomIndex].username;
-            }
-            res.redirect(`/streamer/${channel}?spinning=true`);
-        })
-        .catch(err => res.redirect(`/streamer/${channel}`));
-});
-
-app.post('/clear/:channel', (req, res) => {
-    const channel = req.params.channel.toLowerCase().trim();
-    db.query(`DELETE FROM participants WHERE streamer_channel = $1`, [channel])
-        .then(() => {
-            currentWinners[channel] = null;
-            res.redirect(`/streamer/${channel}`);
-        })
-        .catch(err => res.redirect(`/streamer/${channel}`));
-});
-
-app.listen(PORT, () => console.log(`Универсальный сервер запущен на порту ${PORT}`));
+                        <div class="canvas-container">
+                            <div class="pointer"></div>
+                            <canvas id="wheelCanvas" width="350" height="350"></canvas>
+                        </div>
