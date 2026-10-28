@@ -5,7 +5,7 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const activeClients = {}; 
@@ -18,10 +18,10 @@ const db = new Client({
 
 db.connect()
     .then(() => {
-        console.log('БД успешно подключена');
+        console.log('База данных успешно подключена.');
         return db.query('CREATE TABLE IF NOT EXISTS participants (id SERIAL PRIMARY KEY, streamer_channel TEXT, username TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(streamer_channel, username))');
     })
-    .catch(err => console.error('Ошибка подключения к БД:', err.message));
+    .catch(err => console.error('Ошибка БД:', err.message));
 
 function connectToTwitch(channelName) {
     const channel = channelName.toLowerCase().trim();
@@ -55,24 +55,26 @@ app.get('/', (req, res) => {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Twitch Розыгрыши Комбайн</title>
+            <title>Twitch Розыгрыши</title>
             <meta charset="utf-8">
             <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0f0c; color: #e1e6e2; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                .login-box { background: #141a16; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.7); width: 100%; max-width: 400px; border-top: 4px solid #1db954; }
-                h1 { margin-bottom: 20px; font-size: 24px; color: #1db954; }
-                input { width: 100%; padding: 12px; margin: 15px 0; border-radius: 6px; border: 2px solid #222c25; background: #0b0f0c; color: white; font-size: 16px; box-sizing: border-box; }
-                input:focus { border-color: #1db954; outline: none; }
-                button { width: 100%; background: #1db954; color: #0b0f0c; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-                button:hover { background: #1ed760; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; background: #0e0e10; color: #efeff1; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .login-box { background: #1f1f23; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 100%; max-width: 400px; border-top: 4px solid #9146ff; }
+                h1 { margin-bottom: 20px; font-size: 24px; color: #9146ff; }
+                input { width: 100%; padding: 12px; margin: 15px 0; border-radius: 6px; border: 2px solid #3a3a3c; background: #18181b; color: white; font-size: 16px; box-sizing: border-box; }
+                input:focus { border-color: #9146ff; outline: none; }
+                button { width: 100%; background: #9146ff; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+                button:hover { background: #772ce8; }
+                p { color: #adadb8; font-size: 14px; }
             </style>
         </head>
         <body>
             <div class="login-box">
-                <h1>Twitch Giveaways Pro</h1>
+                <h1>Twitch Розыгрыши 24/7</h1>
+                <p>Введите ваш ник на Твиче, чтобы запустить сбор участников и открыть рулетку</p>
                 <form action="/login" method="POST">
-                    <input type="text" name="twitch_username" placeholder="Никнейм канала" required autocomplete="off">
-                    <button type="submit">Войти в комбайн</button>
+                    <input type="text" name="twitch_username" placeholder="Ваш никнейм (например: welghardi)" required autocomplete="off">
+                    <button type="submit">Войти в панель</button>
                 </form>
             </div>
         </body>
@@ -91,226 +93,204 @@ app.get('/streamer/:channel', (req, res) => {
     connectToTwitch(channel);
 
     if (!settings[channel]) settings[channel] = { command: '+' };
+    const currentKeyword = settings[channel].command;
 
     db.query('SELECT username, timestamp FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
         .then(result => {
-            const participantsData = result.rows.map(r => ({ name: r.username, time: new Date(r.timestamp).toLocaleString() }));
-            const participantsNames = participantsData.map(p => p.name);
+            const rows = result.rows;
+            const participantsNames = rows.map(r => r.username);
+
+            let tableRows = rows.map((row, index) => 
+                `<tr><td>${index + 1}</td><td>${row.username}</td><td>${new Date(row.timestamp).toLocaleString()}</td></tr>`
+            ).join('');
 
             res.send(`
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Комбайн: ${channel}</title>
+                    <title>Twitch Розыгрыши: ${channel}</title>
                     <meta charset="utf-8">
                     <style>
-                        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0f0c; color: #e1e6e2; margin: 0; padding: 20px; display: flex; gap: 20px; height: 95vh; box-sizing: border-box; }
-                        .column { background: #141a16; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; border: 1px solid #222c25; box-sizing: border-box; }
-                        .col-left { flex: 1; max-width: 300px; }
-                        .col-main { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
-                        .col-right { flex: 1; max-width: 320px; }
-                        h2 { color: #1db954; margin-top: 0; font-size: 20px; border-bottom: 1px solid #222c25; padding-bottom: 10px; width: 100%; }
-                        input, select, textarea { background: #0b0f0c; border: 1px solid #222c25; color: white; padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; margin-bottom: 15px; }
-                        input:focus, select:focus { border-color: #1db954; outline: none; }
-                        button { background: #1db954; color: #0b0f0c; border: none; padding: 12px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; transition: 0.2s; margin-bottom: 10px; }
-                        button:hover { background: #1ed760; }
-                        .btn-danger { background: #eb0400; color: white; }
-                        .btn-danger:hover { background: #ff3b30; }
-                        .list-container { flex: 1; overflow-y: auto; background: #0b0f0c; border-radius: 6px; padding: 10px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
-                        .user-item { padding: 8px; border-bottom: 1px solid #222c25; cursor: pointer; }
-                        .user-item:hover { background: #141a16; color: #1db954; }
-                        .timer-box { font-size: 48px; font-weight: bold; color: #eb0400; margin: 15px 0; text-shadow: 0 0 10px rgba(235,4,0,0.3); }
-                        .winner-display { font-size: 32px; font-weight: bold; color: #1db954; margin: 15px 0; text-align: center; }
-                        .canvas-container { position: relative; width: 350px; height: 350px; margin-bottom: 20px; }
+                        body { font-family: 'Segoe UI', Arial, sans-serif; background: #141416; color: #efeff1; padding: 20px; text-align: center; }
+                        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+                        h1 { color: #9146ff; margin-bottom: 5px; }
+                        .winner-box { background: #1f1f23; border: 3px solid #9146ff; padding: 20px; margin: 15px auto; border-radius: 12px; width: 100%; max-width: 500px; font-size: 24px; font-weight: bold; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4); box-sizing: border-box; }
+                        .winner-box span { color: #00ff7f; font-size: 36px; display: block; margin-top: 10px; text-shadow: 0 0 10px rgba(0,255,127,0.5); }
+                        .no-winner { border-color: #3a3a3c; color: #adadb8; font-size: 18px; }
+                        
+                        .setup-panel { background: #1f1f23; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap; border: 1px solid #2d2d30; }
+                        .setup-panel input, .setup-panel select { background: #141416; border: 1px solid #3a3a3c; color: white; padding: 8px; border-radius: 4px; font-size: 14px; }
+                        
+                        .actions { margin: 15px 0; display: flex; justify-content: center; gap: 15px; width: 100%; max-width: 600px; }
+                        button { font-size: 16px; font-weight: bold; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; flex: 1; }
+                        .btn-spin { background: #9146ff; color: white; }
+                        .btn-spin:hover { background: #772ce8; }
+                        .btn-clear { background: #eb0400; color: white; max-width: 200px; }
+                        .btn-clear:hover { background: #ff3b30; }
+
+                        .wheel-zone { display: none; position: relative; width: 360px; height: 360px; margin: 20px auto; }
                         canvas { border-radius: 50%; box-shadow: 0 0 20px rgba(0,0,0,0.6); }
-                        .pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid #1db954; z-index: 10; }
+                        .pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid #9146ff; z-index: 10; }
+
+                        table { margin: 20px auto; border-collapse: collapse; width: 100%; max-width: 700px; background: #1f1f23; border-radius: 8px; overflow: hidden; }
+                        th, td { padding: 12px; border: 1px solid #26262c; text-align: left; }
+                        th { background: #26262c; color: #adadb8; }
                     </style>
                 </head>
                 <body>
-                    <div class="column col-left">
-                        <h2>Настройки</h2>
-                        <form action="/update-settings/${channel}" method="POST">
-                            <label>Ключевое слово для чата:</label>
-                            <input type="text" name="command" value="\${settings['${channel}'].command}" required>
-                            <button type="submit">Применить ключ</button>
-                        </form>
-                        <label>Режим рулетки:</label>
-                        <select id="wheelMode">
-                            <option value="single">С первой прокрутки (Один победитель)</option>
-                            <option value="elimination">На выбывание (До последнего)</option>
-                        </select>
-                        <label>Время прокрутки (сек):</label>
-                        <input type="number" id="spinTime" value="5" min="2" max="20">
-                        <label>Ручной импорт (.txt список):</label>
-                        <textarea id="txtImport" rows="4" placeholder="Вставьте ники, каждый с новой строки..."></textarea>
-                                                <button onclick="importUsers()">Загрузить из текста</button>
-                        <form action="/clear/${channel}" method="POST" onsubmit="return confirm('Вы уверены, что хотите очистить всю базу данных?')">
-                            <button type="submit" class="btn-danger">Очистить базу данных</button>
-                        </form>
-                    </div>
-
-                    <div class="column col-main">
-                        <h2>Розыгрыш и Верификация</h2>
-                        <div class="winner-display" id="winnerOutput">Готовы к старту</div>
-                        <div style="text-align: center; width: 100%;">
-                            <label>Время на ответ победителя (сек):</label>
-                            <input type="number" id="timerSetup" value="30" style="width: 80px; margin-bottom:0; text-align:center;">
-                            <button onclick="startVerificationTimer()" style="width: auto; padding: 10px 20px; margin-left: 10px;">⏱ Запустить таймер</button>
-                            <div class="timer-box" id="timerDisplay">00:00</div>
+                    <div class="container">
+                        <h1>Twitch Розыгрыши</h1>
+                        <p>Вы вошли как канал: <strong style="color: #9146ff;">${channel}</strong> | Участников в базе: <strong id="count">${rows.length}</strong></p>
+                        
+                        <div class="setup-panel">
+                            <form action="/update-settings/${channel}" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
+                                <label>Ключ чата:</label>
+                                <input type="text" name="command" value="${currentKeyword}" style="width:70px; text-align:center;" required>
+                                <button type="submit" style="padding:8px 12px; font-size:13px; flex:none; background:#2d2d30; color:white;">Изменить</button>
+                            </form>
+                            
+                            <label style="margin-left:15px;">Вариант розыгрыша:</label>
+                            <select id="drawMode" onchange="toggleDrawMode()">
+                                <option value="classic">Обычная рулетка (Быстро)</option>
+                                <option value="wheel_single">🎡 Колесо удачи (Один прокрут)</option>
+                                <option value="wheel_elimination">🎡 Колесо удачи (На выбывание)</option>
+                            </select>
                         </div>
-                        <div class="canvas-container">
+
+                        <div class="winner-box no-winner" id="winnerOutput">Победитель еще не выбран</div>
+
+                        <div class="wheel-zone" id="wheelZone">
                             <div class="pointer"></div>
-                            <canvas id="wheelCanvas" width="350" height="350"></canvas>
+                            <canvas id="wheelCanvas" width="360" height="360"></canvas>
                         </div>
-                        <button id="spinBtn" onclick="spinWheel()" style="font-size: 18px; padding: 15px;">🎰 ЗАПУСТИТЬ КОЛЕСО УДАЧИ</button>
-                    </div>
 
-                    <div class="column col-right">
-                        <h2>Участники (<span id="count">0</span>)</h2>
-                        <div class="list-container" id="userList"></div>
-                        <h2>Карточка участника</h2>
-                        <div id="infoPanel" style="background: #0b0f0c; padding: 15px; border-radius: 6px; font-size: 14px; flex: 1; border: 1px solid #222c25;">
-                            Кликните на любой ник в списке выше, чтобы увидеть подробную информацию.
+                        <div class="actions">
+                            <button class="btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ВЫБРАТЬ ПОБЕДИТЕЛЯ</button>
+                            <form action="/clear/${channel}" method="POST" onsubmit="return confirm('Очистить список участников?')" style="flex:1; display:flex;">
+                                <button type="submit" class="btn-clear">Очистить список</button>
+                            </form>
                         </div>
+
+                        <table>
+                            <tr><th style="width: 50px;">#</th><th>Никнейм зрителя</th><th>Время записи</th></tr>
+                            ${tableRows}
+                        </table>
+                        <br>
+                        <a href="/" style="color: #adadb8; text-decoration: none; font-size: 14px;">← Сменить стримера / Выйти</a>
                     </div>
 
                     <script>
-                        let fullData = ${JSON.stringify(participantsData)};
                         let participants = ${JSON.stringify(participantsNames)};
-                        const channel = "${channel}";
-
-                        function initList() {
-                            const list = document.getElementById('userList');
-                            list.innerHTML = '';
-                            document.getElementById('count').innerText = participants.length;
-                            participants.forEach(user => {
-                                const div = document.createElement('div');
-                                div.className = 'user-item';
-                                div.innerText = user;
-                                div.onclick = () => showInfo(user);
-                                list.appendChild(div);
-                            });
-                            drawWheel();
-                        }
-
-                        function importUsers() {
-                            const text = document.getElementById('txtImport').value;
-                            if(!text.trim()) return alert('Текстовое поле пустое');
-                            const newUsers = text.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-                            newUsers.forEach(username => {
-                                if(!participants.includes(username)) {
-                                    participants.push(username);
-                                    fullData.push({ name: username, time: 'Импортирован вручную (' + new Date().toLocaleTimeString() + ')' });
-                                }
-                            });
-                            initList();
-                            document.getElementById('txtImport').value = '';
-                        }
-
-                        function showInfo(username) {
-                            const panel = document.getElementById('infoPanel');
-                            const found = fullData.find(p => p.name === username);
-                            const regTime = found ? found.time : 'Неизвестно';
-                            panel.innerHTML = '<strong>' + username + '</strong><br><br><strong>Записался в рулетку:</strong><br>' + regTime + '<br><br><strong>Быстрые ссылки:</strong><br>• <a href="https://twitch.tv' + username + '" target="_blank" style="color:#1db954; text-decoration:none;">Перейти на Твич</a><br>• <a href="https://twitch.tvpopout/' + channel + '/chat?popout=" target="_blank" style="color:#adadb8; text-decoration:none;">Открыть чат стрима</a>';
-                        }
-
+                        
                         const canvas = document.getElementById('wheelCanvas');
                         const ctx = canvas.getContext('2d');
                         let currentAngle = 0;
 
+                        function toggleDrawMode() {
+                            const mode = document.getElementById('drawMode').value;
+                            const wheelZone = document.getElementById('wheelZone');
+                            const btn = document.getElementById('mainActionBtn');
+
+                            if (mode.startsWith('wheel')) {
+                                wheelZone.style.display = 'block';
+                                btn.innerText = '🎡 КРУТИТЬ КОЛЕСО';
+                                drawWheel();
+                            } else {
+                                wheelZone.style.display = 'none';
+                                btn.innerText = '🎰 ВЫБРАТЬ ПОБЕДИТЕЛЯ';
+                            }
+                        }
+
                         function drawWheel() {
                             const len = participants.length;
-                            ctx.clearRect(0,0,350,350);
+                            ctx.clearRect(0,0,360,360);
                             if(len === 0) {
-                                ctx.fillStyle = '#222c25';
-                                ctx.beginPath(); ctx.arc(175, 175, 175, 0, 2*Math.PI); ctx.fill();
+                                ctx.fillStyle = '#2b2b2f';
+                                ctx.beginPath(); ctx.arc(180, 180, 180, 0, 2*Math.PI); ctx.fill();
                                 ctx.fillStyle = '#adadb8'; ctx.font = '16px Segoe UI'; ctx.textAlign = 'center';
-                                ctx.fillText('Колесо пустое', 175, 175);
+                                ctx.fillText('Колесо пустое', 180, 180);
                                 return;
                             }
                             const arc = (2 * Math.PI) / len;
                             for(let i=0; i<len; i++) {
                                 const angle = currentAngle + i * arc;
-                                ctx.fillStyle = i % 2 === 0 ? '#18221b' : '#1db954';
-                                if (i % 2 !== 0) ctx.fillStyle = '#179c45';
-                                ctx.beginPath(); ctx.moveTo(175,175); ctx.arc(175,175,175, angle, angle + arc); ctx.lineTo(175,175); ctx.fill();
-                                ctx.save(); ctx.fillStyle = 'white'; ctx.translate(175,175); ctx.rotate(angle + arc/2); ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'right';
-                                let text = participants[i]; if(text.length > 12) text = text.substring(0,10) + '...';
-                                ctx.fillText(text, 160, 4); ctx.restore();
+                                ctx.fillStyle = i % 2 === 0 ? '#1f1f23' : '#9146ff';
+                                if (i % 2 !== 0) ctx.fillStyle = '#772ce8';
+                                ctx.beginPath(); ctx.moveTo(180,180); ctx.arc(180,180,180, angle, angle + arc); ctx.lineTo(180,180); ctx.fill();
+
+                                ctx.save(); ctx.fillStyle = 'white'; ctx.translate(180,180); ctx.rotate(angle + arc/2); ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'right';
+                                let text = participants[i]; if(text.length > 14) text = text.substring(0,12) + '...';
+                                ctx.fillText(text, 165, 4); ctx.restore();
                             }
                         }
 
-                        function spinWheel() {
-                            if(participants.length === 0) return alert('Участников нет!');
-                            const mode = document.getElementById('wheelMode').value;
-                            const spinTime = parseFloat(document.getElementById('spinTime').value) * 1000;
-                            const btn = document.getElementById('spinBtn');
-                            btn.disabled = true;
-                            let startTime = null;
-                            const totalRotation = Math.PI * 2 * (4 + Math.random() * 4); 
+                        function runDraw() {
+                            if (participants.length === 0) return alert('Участников ещё нет!');
+                            const mode = document.getElementById('drawMode').value;
+                            const winnerBox = document.getElementById('winnerOutput');
 
-                            function animate(timestamp) {
-                                if (!startTime) startTime = timestamp;
-                                const progress = timestamp - startTime;
-                                const durationProgress = Math.min(progress / spinTime, 1);
-                                const easeOut = 1 - Math.pow(1 - durationProgress, 4);
-                                currentAngle = easeOut * totalRotation;
-                                drawWheel();
+                            if (mode === 'classic') {
+                                const randomIndex = Math.floor(Math.random() * participants.length);
+                                const winner = participants[randomIndex];
+                                winnerBox.className = "winner-box";
+                                winnerBox.innerHTML = '🎉 ПОБЕДИТЕЛЬ: <span>' + winner + '</span> 🎉';
+                            } else {
+                                const btn = document.getElementById('mainActionBtn');
+                                btn.disabled = true;
+                                let startTime = null;
+                                const spinTime = 5000; 
+                                const totalRotation = Math.PI * 2 * (4 + Math.random() * 4);
 
-                                if (progress < spinTime) {
-                                    requestAnimationFrame(animate);
-                                } else {
-                                    btn.disabled = false;
-                                    const arc = (2 * Math.PI) / participants.length;
-                                    let normalizedAngle = (1.5 * Math.PI - currentAngle) % (2 * Math.PI);
-                                    if (normalizedAngle < 0) normalizedAngle += 2 * Math.PI;
-                                    const winnerIndex = Math.floor(normalizedAngle / arc) % participants.length;
-                                    const winner = participants[winnerIndex];
+                                function animate(timestamp) {
+                                    if (!startTime) startTime = timestamp;
+                                    const progress = timestamp - startTime;
+                                    const durationProgress = Math.min(progress / spinTime, 1);
+                                    const easeOut = 1 - Math.pow(1 - durationProgress, 4); 
+                                    currentAngle = easeOut * totalRotation;
+                                    drawWheel();
 
-                                    if(mode === 'elimination' && participants.length > 1) {
-                                        document.getElementById('winnerOutput').innerHTML = '❌ ВЫБЫЛ: <span style="color:#eb0400;">' + winner + '</span>';
-                                        participants.splice(winnerIndex, 1);
-                                        setTimeout(() => initList(), 1500);
+                                    if (progress < spinTime) {
+                                        requestAnimationFrame(animate);
                                     } else {
-                                        document.getElementById('winnerOutput').innerHTML = '🎉 ПОБЕДИТЕЛЬ: <span style="color:#1db954;">' + winner + '</span> 🎉';
-                                        showInfo(winner);
-                                        if(mode === 'elimination') {
-                                            document.getElementById('winnerOutput').innerHTML = '🏆 ФИНАЛЬНЫЙ ЧЕМПИОН: <span style="color:#1db954;">' + winner + '</span> 🏆';
+                                        btn.disabled = false;
+                                        const arc = (2 * Math.PI) / participants.length;
+                                        let normalizedAngle = (1.5 * Math.PI - currentAngle) % (2 * Math.PI);
+                                        if (normalizedAngle < 0) normalizedAngle += 2 * Math.PI;
+                                        const winnerIndex = Math.floor(normalizedAngle / arc) % participants.length;
+                                        const winner = participants[winnerIndex];
+
+                                        winnerBox.className = "winner-box";
+                                        if (mode === 'wheel_elimination' && participants.length > 1) {
+                                            winnerBox.innerHTML = '❌ ВЫБЫЛ ИЗ КОЛЕСА: <span style="color:#eb0400; font-size:28px;">' + winner + '</span>';
+                                            participants.splice(winnerIndex, 1);
+                                            document.getElementById('count').innerText = participants.length;
+                                            setTimeout(() => drawWheel(), 1500);
+                                        } else {
+                                            winnerBox.innerHTML = '🎉 ПОБЕДИТЕЛЬ: <span>' + winner + '</span> 🎉';
+                                            if (mode === 'wheel_elimination') {
+                                                winnerBox.innerHTML = '🏆 ФИНАЛЬНЫЙ ЧЕМПИОН: <span>' + winner + '</span> 🏆';
+                                            }
                                         }
                                     }
                                 }
+                                requestAnimationFrame(animate);
                             }
-                            requestAnimationFrame(animate);
-                        }
-
-                        let timerInterval = null;
-                        function startVerificationTimer() {
-                            clearInterval(timerInterval);
-                            let timeLeft = parseInt(document.getElementById('timerSetup').value);
-                            const display = document.getElementById('timerDisplay');
-                            timerInterval = setInterval(() => {
-                                let minutes = Math.floor(timeLeft / 60); let seconds = timeLeft % 60;
-                                if (--timeLeft < 0) { clearInterval(timerInterval); display.innerText = 'ВРЕМЯ ВЫШЛО!'; }
-                            }, 1000);
                         }
 
                         setInterval(() => {
+                            const mode = document.getElementById('drawMode').value;
+                            if (mode === 'wheel_elimination') return;
+
                             fetch('/api/participants/' + channel)
                                 .then(res => res.json())
                                 .then(data => {
-                                    let updated = false;
-                                    data.forEach(p => {
-                                        if(!participants.includes(p.username)) {
-                                            participants.push(p.username);
-                                            fullData.push({ name: p.username, time: new Date(p.timestamp).toLocaleString() });
-                                            updated = true;
-                                        }
-                                    });
-                                    if(updated) initList();
+                                    if (data.length !== participants.length) {
+                                        participants = data;
+                                        document.getElementById('count').innerText = participants.length;
+                                        if (mode.startsWith('wheel')) drawWheel();
+                                    }
                                 });
                         }, 6000);
-
-                        initList();
                     </script>
                 </body>
                 </html>
@@ -321,8 +301,8 @@ app.get('/streamer/:channel', (req, res) => {
 
 app.get('/api/participants/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
-    db.query('SELECT username, timestamp FROM participants WHERE streamer_channel = $1', [channel])
-        .then(result => res.json(result.rows))
+    db.query('SELECT username FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
+        .then(result => res.json(result.rows.map(r => r.username)))
         .catch(() => res.json([]));
 });
 
@@ -340,4 +320,4 @@ app.post('/clear/:channel', (req, res) => {
         .catch(() => res.redirect('/streamer/' + channel));
 });
 
-app.listen(PORT, () => console.log(`Комбайн запущен на порту ${PORT}`));
+app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
