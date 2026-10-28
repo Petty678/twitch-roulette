@@ -73,7 +73,7 @@ app.get('/', (req, res) => {
                 <h1>Twitch Розыгрыши 24/7</h1>
                 <p>Введите ваш ник на Твиче, чтобы запустить сбор участников и открыть рулетку</p>
                 <form action="/login" method="POST">
-                    <input type="text" name="twitch_username" placeholder="Ваш никнейм (например: welghardi)" required autocomplete="off">
+                    <input type="text" name="twitch_username" placeholder="Ваш никнейм (например: alsushy)" required autocomplete="off">
                     <button type="submit">Войти в панель</button>
                 </form>
             </div>
@@ -152,7 +152,7 @@ app.get('/streamer/:channel', (req, res) => {
                             <label style="margin-left:15px;">Вариант розыгрыша:</label>
                             <select id="drawMode" onchange="toggleDrawMode()">
                                 <option value="classic">Обычная рулетка (Быстро)</option>
-                                <option value="wheel_single">🎡 Колесо удачи (Один прокрут)</option>
+                                <option value="wheel_single">🎡 Колесо удачи (обычное)</option>
                                 <option value="wheel_elimination">🎡 Колесо удачи (На выбывание)</option>
                             </select>
                         </div>
@@ -171,16 +171,18 @@ app.get('/streamer/:channel', (req, res) => {
                             </form>
                         </div>
 
-                        <table>
-                            <tr><th style="width: 50px;">#</th><th>Никнейм зрителя</th><th>Время записи</th></tr>
-                            ${tableRows}
+                        <table id="participantsTable">
+                            <thead>
+                                <tr><th style="width: 50px;">#</th><th>Никнейм зрителя</th><th>Время записи</th></tr>
+                            \${tableRows}
+                            </tbody>
                         </table>
                         <br>
                         <a href="/" style="color: #adadb8; text-decoration: none; font-size: 14px;">← Сменить стримера / Выйти</a>
                     </div>
 
                     <script>
-                        let participants = ${JSON.stringify(participantsNames)};
+                        let participants = \${JSON.stringify(participantsNames)};
                         
                         const canvas = document.getElementById('wheelCanvas');
                         const ctx = canvas.getContext('2d');
@@ -287,14 +289,28 @@ app.get('/streamer/:channel', (req, res) => {
                                     if (data.length !== participants.length) {
                                         participants = data;
                                         document.getElementById('count').innerText = participants.length;
+                                        
+                                        const tbody = document.querySelector('#participantsTable tbody');
+                                        tbody.innerHTML = '';
+                                        
+                                        fetch('/api/participants-full/' + channel)
+                                            .then(r => r.json())
+                                            .then(fullList => {
+                                                fullList.forEach((row, index) => {
+                                                    const tr = document.createElement('tr');
+                                                    tr.innerHTML = '<td>' + (index + 1) + '</td><td>' + row.username + '</td><td>' + new Date(row.timestamp).toLocaleString() + '</td>';
+                                                    tbody.appendChild(tr);
+                                                });
+                                            });
+
                                         if (mode.startsWith('wheel')) drawWheel();
                                     }
                                 });
-                        }, 6000);
+                        }, 1000);
                     </script>
                 </body>
                 </html>
-            `);
+            \`);
         })
         .catch(err => res.status(500).send(err.message));
 });
@@ -303,6 +319,13 @@ app.get('/api/participants/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
     db.query('SELECT username FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
         .then(result => res.json(result.rows.map(r => r.username)))
+        .catch(() => res.json([]));
+});
+
+app.get('/api/participants-full/:channel', (req, res) => {
+    const channel = req.params.channel.toLowerCase().trim();
+    db.query('SELECT username, timestamp FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
+        .then(result => res.json(result.rows))
         .catch(() => res.json([]));
 });
 
