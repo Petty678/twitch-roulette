@@ -183,3 +183,169 @@ app.get('/streamer/:channel', (req, res) => {
                             <div class="pointer"></div>
                             <canvas id="wheelCanvas" width="350" height="350"></canvas>
                         </div>
+                    <div class="column col-right">
+                        <h2>Участники (<span id="count">0</span>)</h2>
+                        <div class="list-container" id="userList"></div>
+                        
+                        <h2>Карточка участника</h2>
+                        <div id="infoPanel" style="background: #0b0f0c; padding: 15px; border-radius: 6px; font-size: 14px; flex: 1; border: 1px solid #222c25;">
+                            Кликните на любой ник в списке выше, чтобы увидеть подробную информацию.
+                        </div>
+                    </div>
+
+                    <script>
+                        let fullData = ${JSON.stringify(participantsData)};
+                        let participants = ${JSON.stringify(participantsNames)};
+                        const channel = "${channel}";
+
+                        function initList() {
+                            const list = document.getElementById('userList');
+                            list.innerHTML = '';
+                            document.getElementById('count').innerText = participants.length;
+                            
+                            participants.forEach(user => {
+                                const div = document.createElement('div');
+                                div.className = 'user-item';
+                                div.innerText = user;
+                                div.onclick = () => showInfo(user);
+                                list.appendChild(div);
+                            });
+                            drawWheel();
+                        }
+
+                        function importUsers() {
+                            const text = document.getElementById('txtImport').value;
+                            if(!text.trim()) return alert('Текстовое поле пустое');
+                            const newUsers = text.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+                            
+                            newUsers.forEach(username => {
+                                if(!participants.includes(username)) {
+                                    participants.push(username);
+                                    fullData.push({ name: username, time: 'Импортирован вручную (' + new Date().toLocaleTimeString() + ')' });
+                                }
+                            });
+                            initList();
+                            document.getElementById('txtImport').value = '';
+                        }
+
+                        function showInfo(username) {
+                            const panel = document.getElementById('infoPanel');
+                            const found = fullData.find(p => p.name === username);
+                            const regTime = found ? found.time : 'Неизвестно';
+                            
+                            panel.innerHTML = `
+                                <strong style="color:#1db954; font-size:16px;">${username}</strong><br><br>
+                                <strong>Записался в рулетку:</strong><br> ${regTime}<br><br>
+                                <strong>Быстрые ссылки:</strong><br>
+                                • <a href="https://twitch.tv{username}" target="_blank" style="color:#1db954; text-decoration:none;">Перейти на Твич канальчик</a><br>
+                                • <a href="https://twitch.tv{channel}/chat?popout=" target="_blank" style="color:#adadb8; text-decoration:none;">Открыть чат стрима</a>
+                            `;
+                        }
+
+                        const canvas = document.getElementById('wheelCanvas');
+                        const ctx = canvas.getContext('2d');
+                        let currentAngle = 0;
+
+                        function drawWheel() {
+                            const len = participants.length;
+                            ctx.clearRect(0,0,350,350);
+                            if(len === 0) {
+                                ctx.fillStyle = '#222c25';
+                                ctx.beginPath(); ctx.arc(175, 175, 175, 0, 2*Math.PI); ctx.fill();
+                                ctx.fillStyle = '#adadb8'; ctx.font = '16px Segoe UI'; ctx.textAlign = 'center';
+                                ctx.fillText('Колесо пустое', 175, 175);
+                                return;
+                            }
+                            const arc = (2 * Math.PI) / len;
+                            for(let i=0; i<len; i++) {
+                                const angle = currentAngle + i * arc;
+                                ctx.fillStyle = i % 2 === 0 ? '#18221b' : '#1db954';
+                                if (i % 2 !== 0) ctx.fillStyle = '#179c45';
+                                ctx.beginPath();
+                                ctx.moveTo(175,175);
+                                ctx.arc(175,175,175, angle, angle + arc);
+                                ctx.lineTo(175,175);
+                                ctx.fill();
+
+                                ctx.save();
+                                ctx.fillStyle = 'white';
+                                ctx.translate(175,175);
+                                ctx.rotate(angle + arc/2);
+                                ctx.font = 'bold 12px Segoe UI';
+                                ctx.textAlign = 'right';
+                                let text = participants[i];
+                                if(text.length > 12) text = text.substring(0,10) + '...';
+                                ctx.fillText(text, 160, 4);
+                                ctx.restore();
+                            }
+                        }
+
+                        function spinWheel() {
+                            if(participants.length === 0) return alert('Участников нет!');
+                            const mode = document.getElementById('wheelMode').value;
+                            const spinTime = parseFloat(document.getElementById('spinTime').value) * 1000;
+                            const btn = document.getElementById('spinBtn');
+                            btn.disabled = true;
+
+                            let startTime = null;
+                            const totalRotation = Math.PI * 2 * (4 + Math.random() * 4); 
+
+                            function animate(timestamp) {
+                                if (!startTime) startTime = timestamp;
+                                const progress = timestamp - startTime;
+                                const durationProgress = Math.min(progress / spinTime, 1);
+                                
+                                const easeOut = 1 - Math.pow(1 - durationProgress, 4);
+                                currentAngle = easeOut * totalRotation;
+                                drawWheel();
+
+                                if (progress < spinTime) {
+                                    requestAnimationFrame(animate);
+                                } else {
+                                    btn.disabled = false;
+                                    const arc = (2 * Math.PI) / participants.length;
+                                    let normalizedAngle = (1.5 * Math.PI - currentAngle) % (2 * Math.PI);
+                                    if (normalizedAngle < 0) normalizedAngle += 2 * Math.PI;
+                                    const winnerIndex = Math.floor(normalizedAngle / arc) % participants.length;
+                                    const winner = participants[winnerIndex];
+
+                                    if(mode === 'elimination' && participants.length > 1) {
+                                        document.getElementById('winnerOutput').innerHTML = '❌ ВЫБЫЛ ИЗ КОЛЕСА: <span style="color:#eb0400;">' + winner + '</span>';
+                                        participants.splice(winnerIndex, 1);
+                                        setTimeout(() => initList(), 1500);
+                                    } else {
+                                        document.getElementById('winnerOutput').innerHTML = '🎉 ПОБЕДИТЕЛЬ: <span style="color:#1db954;">' + winner + '</span> 🎉';
+                                        showInfo(winner);
+                                        if(mode === 'elimination') {
+                                            document.getElementById('winnerOutput').innerHTML = '🏆 ФИНАЛЬНЫЙ ЧЕМПИОН: <span style="color:#1db954;">' + winner + '</span> 🏆';
+                                        }
+                                    }
+                                }
+                            }
+                            requestAnimationFrame(animate);
+                        }
+
+                        let timerInterval = null;
+                        function startVerificationTimer() {
+                            clearInterval(timerInterval);
+                            let timeLeft = parseInt(document.getElementById('timerSetup').value);
+                            const display = document.getElementById('timerDisplay');
+                            
+                            timerInterval = setInterval(() => {
+                                let minutes = Math.floor(timeLeft / 60);
+                                let seconds = timeLeft % 60;
+                                minutes = minutes < 10 ? '0' + minutes : minutes;
+                                seconds = seconds < 10 ? '0' + seconds : seconds;
+                                display.innerText = minutes + ':' + seconds;
+
+                                if (--timeLeft < 0) {
+                                    clearInterval(timerInterval);
+                                    display.innerText = 'ВРЕМЯ ВЫШЛО!';
+                                }
+                            }, 1000);
+                        }
+
+                        setInterval(() => {
+                            fetch(`/api/participants/${channel}`)
+                                .then(res => res.json())
+                                .then(data => {
