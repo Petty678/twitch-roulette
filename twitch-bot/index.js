@@ -1,73 +1,9 @@
-const tmi = require('tmi.js');
-const { Client } = require('pg');
-const express = require('express');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-
-const activeClients = {}; 
-const settings = {}; 
-
-const db = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
-
-// Настройка структуры базы данных (данные хранятся вечно, пока вы сами не нажмете кнопку "Очистить")
-db.connect()
-    .then(async () => {
-        console.log('База данных успешно подключена.');
-        // Временная команда: сносим старую заклинившую таблицу
-        await db.query('DROP TABLE IF EXISTS participants');
-        return db.query('CREATE TABLE IF NOT EXISTS participants (id SERIAL PRIMARY KEY, room_id TEXT, username TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(room_id, username))');
-    })
-
-function connectToTwitch(channelName) {
-    const channel = channelName.toLowerCase().trim();
-    if (activeClients[channel]) return;
-
-    if (!settings[channel]) {
-        settings[channel] = { command: 'розыгрыш' }; // ключевое слово по умолчанию как на VelRoll
-    }
-
-    const client = new tmi.Client({ channels: [channel] });
-    client.connect().catch(console.error);
-    activeClients[channel] = client;
-
-    client.on('message', (ch, tags, message, self) => {
-        if (self) return;
-        const targetChannel = ch.replace('#', '');
-        const currentCommand = settings[targetChannel]?.command || 'розыгрыш';
-
-        if (message.trim().toLowerCase() === currentCommand.toLowerCase()) {
-            const username = tags['display-name'] || tags.username;
-            
-            // Находим все комнаты, созданные для этого стримера, и добавляем участника во все активные сессии
-            db.query('SELECT DISTINCT room_id FROM participants WHERE room_id LIKE $1', [targetChannel + '_%'])
-                .then(res => {
-                    // Если комнат еще нет, добавляем хотя бы в стандартную
-                    if (res.rows.length === 0) {
-                        db.query('INSERT INTO participants (room_id, username) VALUES ($1, $2) ON CONFLICT DO NOTHING', [targetChannel + '_main', username]).catch(() => {});
-                    }
-                    res.rows.forEach(row => {
-                        db.query(
-                            'INSERT INTO participants (room_id, username) VALUES ($1, $2) ON CONFLICT DO NOTHING', 
-                            [row.room_id, username]
-                        ).catch(() => {});
-                    });
-                }).catch(() => {});
-        }
-    });
-}
 app.get('/', (req, res) => {
     res.send(`
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Twitch Розыгрыши — Вечные комнаты</title>
+            <title>Twitch Розыгрыши</title>
             <meta charset="utf-8">
             <style>
                 body { font-family: 'Segoe UI', Arial, sans-serif; background: #0e0e10; color: #efeff1; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
@@ -83,7 +19,7 @@ app.get('/', (req, res) => {
         <body>
             <div class="login-box">
                 <h1>Twitch Розыгрыши 24/7</h1>
-                <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники внутри комнаты сохраняются неделями и не сбрасываются при закрытии вкладки!</p>
+                <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники внутри комнаты сохраняются неделями!</p>
                 <form action="/login" method="POST">
                     <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: strict)" required autocomplete="off">
                     <input type="text" name="room_name" placeholder="Название комнаты (например: sub_giveaway)" required autocomplete="off">
@@ -100,7 +36,6 @@ app.post('/login', (req, res) => {
     const roomName = req.body.room_name.toLowerCase().replace(/[^a-z0-9_-]/g, '').trim();
     if (!channel || !roomName) return res.redirect('/');
     
-    // Создаем вечный ID комнаты, привязанный к стримеру
     const uniqueRoom = channel + '_' + roomName;
     res.redirect('/streamer/' + channel + '?room=' + uniqueRoom);
 });
@@ -111,8 +46,12 @@ app.get('/streamer/:channel', (req, res) => {
     const displayRoomName = room.replace(channel + '_', '');
     connectToTwitch(channel);
 
-    if (!settings[channel]) settings[channel] = { command: 'розыгрыш' };
+    if (!settings[channel]) settings[channel] = {};
+    if (!settings[channel].command) settings[channel].command = 'розыгрыш';
+    if (settings[channel][room] === undefined) settings[channel][room] = false; // По умолчанию сбор выключен
+
     const currentKeyword = settings[channel].command;
+    const isCollecting = settings[channel][room];
 
     db.query('SELECT username, timestamp FROM participants WHERE room_id = $1 ORDER BY id DESC', [room])
         .then(result => {
@@ -140,17 +79,24 @@ app.get('/streamer/:channel', (req, res) => {
                         .setup-panel { background: #1f1f23; padding: 15px; border-radius: 8px; margin-bottom: 25px; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap; border: 1px solid #2d2d30; width: 100%; max-width: 750px; box-sizing: border-box; }
                         .setup-panel input, .setup-panel select { background: #141416; border: 1px solid #3a3a3c; color: white; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
                         .actions { margin: 15px 0; display: flex; justify-content: center; gap: 15px; width: 100%; max-width: 650px; }
-                        button { font-size: 16px; font-weight: bold; padding: 12px 26px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; flex: 1; }
+                        button { font-size: 16px; font-weight: bold; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; flex: 1; }
                         .btn-spin { background: #9146ff; color: white; }
                         .btn-spin:hover { background: #772ce8; }
-                        .btn-clear { background: #eb0400; color: white; max-width: 220px; }
+                        .btn-clear { background: #eb0400; color: white; max-width: 150px; }
                         .btn-clear:hover { background: #ff3b30; }
+                        .btn-start { background: #00ff7f; color: #141416; max-width: 200px; }
+                        .btn-start:hover { background: #00cc66; }
+                        .btn-stop { background: #ffaa00; color: #141416; max-width: 200px; }
+                        .btn-stop:hover { background: #cc8800; }
+                        .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 14px; margin-left: 10px; }
+                        .status-on { background: rgba(0, 255, 127, 0.2); color: #00ff7f; border: 1px solid #00ff7f; }
+                        .status-off { background: rgba(255, 170, 0, 0.2); color: #ffaa00; border: 1px solid #ffaa00; }
                         .wheel-zone { display: none; position: relative; width: 360px; height: 360px; margin: 25px auto; }
                         canvas { border-radius: 50%; box-shadow: 0 0 25px rgba(0,0,0,0.7); }
                         .pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid #9146ff; z-index: 10; }
                         table { margin: 25px auto; border-collapse: collapse; width: 100%; max-width: 750px; background: #1f1f23; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
                         th, td { padding: 14px; border: 1px solid #26262c; text-align: left; }
-                        th { background: #26262c; color: #adadb8; font-weight: 6px; }
+                        th { background: #26262c; color: #adadb8; }
                     </style>
                 </head>
                 <body>
@@ -159,6 +105,7 @@ app.get('/streamer/:channel', (req, res) => {
                         <div class="room-info">
                             Канал: <strong style="color: #9146ff;">` + channel + `</strong> | 
                             Комната: <strong style="color: #00ff7f;">` + displayRoomName + `</strong> | 
+                            Статус: <span class="status-badge ` + (isCollecting ? 'status-on' : 'status-off') + `">` + (isCollecting ? '🔴 ИДЕТ СБОР' : '⚪ СБОР ОСТАНОВЛЕН') + `</span> |
                             Участников: <strong id="count">` + rows.length + `</strong>
                         </div>
                         
@@ -166,7 +113,7 @@ app.get('/streamer/:channel', (req, res) => {
                             <form action="/update-settings/` + channel + `?room=` + room + `" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
                                 <label>Ключ чата:</label>
                                 <input type="text" name="command" value="` + currentKeyword + `" style="width:110px; text-align:center;" required>
-                                <button type="submit" style="padding:8px 12px; font-size:13px; flex:none; background:#2d2d30; color:white; border-radius:4px; border:none; cursor:pointer;">Изменить</button>
+                                <button type="submit" style="padding:8px 12px; font-size:13px; background:#2d2d30; color:white; border-radius:4px; border:none; cursor:pointer;">Изменить</button>
                             </form>
                             
                             <label style="margin-left:15px;">Вариант розыгрыша:</label>
@@ -185,9 +132,15 @@ app.get('/streamer/:channel', (req, res) => {
                         </div>
 
                         <div class="actions">
-                            <button class="btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ВЫБРАТЬ ПОБЕДИТЕЛЯ</button>
-                            <form action="/clear/` + channel + `?room=` + room + `" method="POST" onsubmit="return confirm('Вы уверены, что хотите полностью очистить эту комнату?')" style="flex:1; display:flex;">
-                                <button type="submit" class="btn-clear">Очистить комнату</button>
+                            <!-- УПРАВЛЕНИЕ СБОРОМ УЧАСТНИКОВ -->
+                            <form action="/toggle-collection/` + channel + `?room=` + room + `" method="POST" style="display:contents;">
+                                <button type="submit" class="` + (isCollecting ? 'btn-stop' : 'btn-start') + `">` + (isCollecting ? '🛑 ОСТАНОВИТЬ СБОР' : '▶ ЗАПУСТИТЬ СБОР') + `</button>
+                            </form>
+
+                            <button class="btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ЗАПУСТИТЬ РОЗЫГРЫШ</button>
+                            
+                            <form action="/clear/` + channel + `?room=` + room + `" method="POST" onsubmit="return confirm('Вы уверены, что хотите полностью очистить эту комнату?')" style="display:contents;">
+                                <button type="submit" class="btn-clear">Очистить</button>
                             </form>
                         </div>
 
@@ -218,14 +171,13 @@ app.get('/streamer/:channel', (req, res) => {
 
                             if (mode.startsWith('wheel')) {
                                 wheelZone.style.display = 'block';
-                                btn.innerText = '🎡 КРУТИТЬ КОЛЕСО';
+                                btn.innerText = '🎡 ЗАПУСТИТЬ РОЗЫГРЫШ';
                                 drawWheel();
                             } else {
                                 wheelZone.style.display = 'none';
-                                btn.innerText = '🎰 ВЫБРАТЬ ПОБЕДИТЕЛЯ';
+                                btn.innerText = '🎰 ЗАПУСТИТЬ РОЗЫГРЫШ';
                             }
                         }
-
                         function drawWheel() {
                             const len = participants.length;
                             ctx.clearRect(0,0,360,360);
@@ -350,6 +302,14 @@ app.get('/api/participants-full/:room', (req, res) => {
     db.query('SELECT username, timestamp FROM participants WHERE room_id = $1 ORDER BY id DESC', [room])
         .then(result => res.json(result.rows))
         .catch(() => res.json([]));
+});
+
+app.post('/toggle-collection/:channel', (req, res) => {
+    const channel = req.params.channel.toLowerCase().trim();
+    const room = req.query.room;
+    if (!settings[channel]) settings[channel] = {};
+    settings[channel][room] = !settings[channel][room];
+    res.redirect('/streamer/' + channel + '?room=' + room);
 });
 
 app.post('/update-settings/:channel', (req, res) => {
