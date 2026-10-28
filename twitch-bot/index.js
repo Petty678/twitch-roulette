@@ -16,12 +16,14 @@ const db = new Client({
     ssl: { rejectUnauthorized: false }
 });
 
+// СОЗДАЕМ ТАБЛИЦУ, КОТОРЯ ПРИВЯЗЫВАЕТ К УНИКАЛЬНОЙ СЕССИИ БРАУЗЕРА (ROOM)
 db.connect()
     .then(() => {
         console.log('База данных успешно подключена.');
-        return db.query('CREATE TABLE IF NOT EXISTS participants (id SERIAL PRIMARY KEY, streamer_channel TEXT, username TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(streamer_channel, username))');
+        return db.query('CREATE TABLE IF NOT EXISTS participants (id SERIAL PRIMARY KEY, room_id TEXT, username TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(room_id, username))');
     })
     .catch(err => console.error('Ошибка БД:', err.message));
+
 function connectToTwitch(channelName) {
     const channel = channelName.toLowerCase().trim();
     if (activeClients[channel]) return;
@@ -41,10 +43,17 @@ function connectToTwitch(channelName) {
 
         if (message.trim() === currentCommand) {
             const username = tags['display-name'] || tags.username;
-            db.query(
-                'INSERT INTO participants (streamer_channel, username) VALUES ($1, $2) ON CONFLICT DO NOTHING', 
-                [targetChannel, username]
-            ).catch(err => console.error(err.message));
+            
+            // Находим все активные открытые комнаты для этого канала и добавляем зрителя во все параллельно
+            db.query('SELECT DISTINCT room_id FROM participants WHERE room_id LIKE $1', [targetChannel + '_%'])
+                .then(res => {
+                    res.rows.forEach(row => {
+                        db.query(
+                            'INSERT INTO participants (room_id, username) VALUES ($1, $2) ON CONFLICT DO NOTHING', 
+                            [row.room_id, username]
+                        ).catch(() => {});
+                    });
+                }).catch(() => {});
         }
     });
 }
@@ -69,10 +78,10 @@ app.get('/', (req, res) => {
         <body>
             <div class="login-box">
                 <h1>Twitch Розыгрыши 24/7</h1>
-                <p>Введите ваш ник на Твиче, чтобы запустить сбор участников и открыть рулетку</p>
+                <p>Введите ваш ник на Твиче. Каждая открытая вкладка создаёт свой независимый розыгрыш!</p>
                 <form action="/login" method="POST">
-                    <input type="text" name="twitch_username" placeholder="Ваш никнейм (например: petty678)" required autocomplete="off">
-                    <button type="submit">Войти в панель</button>
+                    <input type="text" name="twitch_username" placeholder="Ваш никнейм (например: strict)" required autocomplete="off">
+                    <button type="submit">Открыть чистую рулетку</button>
                 </form>
             </div>
         </body>
@@ -83,16 +92,19 @@ app.get('/', (req, res) => {
 app.post('/login', (req, res) => {
     const channel = req.body.twitch_username.toLowerCase().trim();
     if (!channel) return res.redirect('/');
-    res.redirect('/streamer/' + channel);
+    // Генерируем случайный код комнаты, чтобы сессии разных людей не пересекались
+    const uniqueRoom = channel + '_' + Math.random().toString(36).substring(2, 9);
+    res.redirect('/streamer/' + channel + '?room=' + uniqueRoom);
 });
 app.get('/streamer/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
+    const room = req.query.room || (channel + '_default');
     connectToTwitch(channel);
 
     if (!settings[channel]) settings[channel] = { command: '+' };
     const currentKeyword = settings[channel].command;
 
-    db.query('SELECT username, timestamp FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
+    db.query('SELECT username, timestamp FROM participants WHERE room_id = $1 ORDER BY id DESC', [room])
         .then(result => {
             const rows = result.rows;
             const participantsNames = rows.map(r => r.username);
@@ -133,10 +145,10 @@ app.get('/streamer/:channel', (req, res) => {
                 <body>
                     <div class="container">
                         <h1>Twitch Розыгрыши</h1>
-                        <p>Вы вошли как канал: <strong style="color: #9146ff;">` + channel + `</strong> | Участников в базе: <strong id="count">` + rows.length + `</strong></p>
+                        <p>Вы вошли как канал: <strong style="color: #9146ff;">` + channel + `</strong> | Участников в вашей комнате: <strong id="count">` + rows.length + `</strong></p>
                         
                         <div class="setup-panel">
-                            <form action="/update-settings/` + channel + `" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
+                            <form action="/update-settings/` + channel + `?room=` + room + `" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
                                 <label>Ключ чата:</label>
                                 <input type="text" name="command" value="` + currentKeyword + `" style="width:70px; text-align:center;" required>
                                 <button type="submit" style="padding:8px 12px; font-size:13px; flex:none; background:#2d2d30; color:white;">Изменить</button>
@@ -149,7 +161,6 @@ app.get('/streamer/:channel', (req, res) => {
                                 <option value="wheel_elimination">🎡 Колесо удачи (На выбывание)</option>
                             </select>
                         </div>
-
                         <div class="winner-box no-winner" id="winnerOutput">Победитель еще не выбран</div>
 
                         <div class="wheel-zone" id="wheelZone">
@@ -159,7 +170,7 @@ app.get('/streamer/:channel', (req, res) => {
 
                         <div class="actions">
                             <button class="btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ВЫБРАТЬ ПОБЕДИТЕЛЯ</button>
-                            <form action="/clear/` + channel + `" method="POST" onsubmit="return confirm('Очистить список участников?')" style="flex:1; display:flex;">
+                            <form action="/clear/` + channel + `?room=` + room + `" method="POST" onsubmit="return confirm('Очистить список участников?')" style="flex:1; display:flex;">
                                 <button type="submit" class="btn-clear">Очистить список</button>
                             </form>
                         </div>
@@ -178,7 +189,7 @@ app.get('/streamer/:channel', (req, res) => {
 
                     <script>
                         let participants = ` + JSON.stringify(participantsNames) + `;
-                        const channel = "` + channel + `";
+                        const room = "` + room + `";
                         
                         const canvas = document.getElementById('wheelCanvas');
                         const ctx = canvas.getContext('2d');
@@ -221,7 +232,6 @@ app.get('/streamer/:channel', (req, res) => {
                                 ctx.fillText(text, 165, 4); ctx.restore();
                             }
                         }
-
                         function runDraw() {
                             if (participants.length === 0) return alert('Участников ещё нет!');
                             const mode = document.getElementById('drawMode').value;
@@ -279,7 +289,7 @@ app.get('/streamer/:channel', (req, res) => {
                             const mode = document.getElementById('drawMode').value;
                             if (mode === 'wheel_elimination') return;
 
-                            fetch('/api/participants/' + channel)
+                            fetch('/api/participants/' + room)
                                 .then(res => res.json())
                                 .then(data => {
                                     if (data.length !== participants.length) {
@@ -289,7 +299,7 @@ app.get('/streamer/:channel', (req, res) => {
                                         const tbody = document.querySelector('#participantsTable tbody');
                                         tbody.innerHTML = '';
                                         
-                                        fetch('/api/participants-full/' + channel)
+                                        fetch('/api/participants-full/' + room)
                                             .then(r => r.json())
                                             .then(fullList => {
                                                 fullList.forEach((row, index) => {
@@ -311,32 +321,34 @@ app.get('/streamer/:channel', (req, res) => {
         .catch(err => res.status(500).send(err.message));
 });
 
-app.get('/api/participants/:channel', (req, res) => {
-    const channel = req.params.channel.toLowerCase().trim();
-    db.query('SELECT username FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
+app.get('/api/participants/:room', (req, res) => {
+    const room = req.params.room;
+    db.query('SELECT username FROM participants WHERE room_id = $1 ORDER BY id DESC', [room])
         .then(result => res.json(result.rows.map(r => r.username)))
         .catch(() => res.json([]));
 });
 
-app.get('/api/participants-full/:channel', (req, res) => {
-    const channel = req.params.channel.toLowerCase().trim();
-    db.query('SELECT username, timestamp FROM participants WHERE streamer_channel = $1 ORDER BY id DESC', [channel])
+app.get('/api/participants-full/:room', (req, res) => {
+    const room = req.params.room;
+    db.query('SELECT username, timestamp FROM participants WHERE room_id = $1 ORDER BY id DESC', [room])
         .then(result => res.json(result.rows))
         .catch(() => res.json([]));
 });
 
 app.post('/update-settings/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
+    const room = req.query.room;
     if (!settings[channel]) settings[channel] = {};
     settings[channel].command = req.body.command.trim();
-    res.redirect('/streamer/' + channel);
+    res.redirect('/streamer/' + channel + '?room=' + room);
 });
 
 app.post('/clear/:channel', (req, res) => {
     const channel = req.params.channel.toLowerCase().trim();
-    db.query('DELETE FROM participants WHERE streamer_channel = $1', [channel])
-        .then(() => res.redirect('/streamer/' + channel))
-        .catch(() => res.redirect('/streamer/' + channel));
+    const room = req.query.room;
+    db.query('DELETE FROM participants WHERE room_id = $1', [room])
+        .then(() => res.redirect('/streamer/' + channel + '?room=' + room))
+        .catch(() => res.redirect('/streamer/' + channel + '?room=' + room));
 });
 
 app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
