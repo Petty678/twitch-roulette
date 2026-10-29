@@ -379,7 +379,14 @@ app.get('/streamer/:channel', (req, res) => {
                             
                             setTimeout(() => { runDraw(); }, 1500);
                         }
-                        function runDraw() {
+                                            </script>
+                </body>
+                </html>
+            `);
+        })
+        .catch(err => res.status(500).send(err.message));
+});
+function runDraw() {
                             if (participants.length === 0) return alert("Участников ещё нет!");
                             const mode = document.getElementById("drawMode").value;
                             const winnerBox = document.getElementById("winnerOutput");
