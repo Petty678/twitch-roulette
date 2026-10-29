@@ -64,23 +64,23 @@ app.get('/', (req, res) => {
             <title>Twitch Розыгрыши</title>
             <meta charset="utf-8">
             <style>
-                body { font-family: "Segoe UI", Arial, sans-serif; background: #0e0e10; color: #efeff1; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                .login-box { background: #1f1f23; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 100%; max-width: 440px; border-top: 4px solid #9146ff; }
-                h1 { margin-bottom: 10px; font-size: 26px; color: #9146ff; }
-                input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 2px solid #3a3a3c; background: #18181b; color: white; font-size: 16px; box-sizing: border-box; }
-                input:focus { border-color: #9146ff; outline: none; }
-                button { width: 100%; background: #9146ff; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-top: 10px; }
-                button:hover { background: #772ce8; }
+                body { font-family: "Segoe UI", Arial, sans-serif; background: #09090b; color: #efeff1; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .login-box { background: #111115; padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 0 25px rgba(145, 70, 255, 0.15); width: 100%; max-width: 440px; border-top: 4px solid #a970ff; }
+                h1 { margin-bottom: 10px; font-size: 26px; color: #a970ff; text-shadow: 0 0 10px rgba(169, 112, 255, 0.3); }
+                input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 2px solid #2a2a35; background: #181820; color: white; font-size: 16px; box-sizing: border-box; transition: 0.2s; }
+                input:focus { border-color: #a970ff; outline: none; box-shadow: 0 0 10px rgba(169, 112, 255, 0.4); }
+                button { width: 100%; background: #a970ff; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: 0.2s; margin-top: 10px; box-shadow: 0 4px 15px rgba(169, 112, 255, 0.3); }
+                button:hover { background: #bd85ff; transform: translateY(-1px); }
                 p { color: #adadb8; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
             </style>
         </head>
         <body>
             <div class="login-box">
-                <h1>Twitch Розыгрыши 24/7 (НАХОДИТСЯ В РАЗРАБОТКЕ)</h1>
-                <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники внутри комнаты сохраняются неделями!</p>
+                <h1>Twitch Розыгрыши 24/7</h1>
+                <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники сохраняются вечно в базе данных!</p>
                 <form action="/login" method="POST">
                     <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: strict)" required autocomplete="off">
-                    <input type="text" name="room_name" placeholder="Название комнаты (например: sub_giveaway)" required autocomplete="off"><button type="submit">Открыть / Создать комнату</button>
+                    <input type="text" name="room_name" placeholder="Название комнаты (например: main)" required autocomplete="off"><button type="submit">Открыть / Создать комнату</button>
                 </form>
             </div>
         </body>
@@ -117,132 +117,178 @@ app.get('/streamer/:channel', (req, res) => {
             const participantsNames = rows.map(r => r.username);
 
             let tableRows = rows.map((row, index) => 
-                '<tr><td>' + (index + 1) + '</td><td>' + row.username + '</td><td>' + new Date(row.timestamp).toLocaleString() + '</td></tr>'
+                '<tr><td>' + (index + 1) + '</td><td>' + row.username + '</td><td>' + new Date(row.timestamp).toLocaleTimeString() + '</td></tr>'
             ).join('');
+
             res.send(`
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Розыгрыш: ` + channel + ` (` + displayRoomName + `)</title>
+                    <title>Панель управления розыгрышем</title>
                     <meta charset="utf-8">
                     <style>
-                        body { font-family: "Segoe UI", Arial, sans-serif; background: #141416; color: #efeff1; padding: 20px; text-align: center; }
-                        .container { max-width: 950px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
-                        h1 { color: #9146ff; margin-bottom: 5px; font-size: 28px; }
-                        .room-info { color: #adadb8; margin-bottom: 20px; font-size: 15px; }
+                        body { font-family: "Segoe UI", Arial, sans-serif; background: #070709; color: #efeff1; padding: 15px; margin: 0; box-sizing: border-box; }
                         
-                        /* ГОРИЗОНТАЛЬНАЯ ЛЕНТА CS:GO / POINT-AUCTION */
-                        .roulette-container { background: #1f1f23; border: 1px solid #2d2d30; padding: 30px 10px; margin: 20px auto; border-radius: 12px; width: 100%; max-width: 650px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.5); overflow: hidden; box-sizing: border-box; }
+                        /* СТИЛЬНЫЕ ТРИ КОЛОНКИ С КОСМИЧЕСКИМ ФИОЛЕТОВЫМ НЕОНОМ */
+                        .dashboard { display: grid; grid-template-columns: 330px 1fr 340px; gap: 15px; max-width: 100%; margin: 0 auto; height: calc(100vh - 30px); }
+                        .panel-box { background: #111115; border: 1px solid #1c1c24; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+                        .panel-title { font-size: 15px; font-weight: bold; color: #a970ff; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1c1c24; padding-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+                        
+                        /* ИНПУТЫ И ФОРМЫ */
+                        .form-group { text-align: left; margin-bottom: 15px; }
+                        .form-group label { display: block; font-size: 12px; color: #adadb8; margin-bottom: 6px; font-weight: 500; }
+                        .form-group input, .form-group select { width: 100%; background: #16161e; border: 1px solid #2a2a35; color: white; padding: 10px; border-radius: 8px; font-size: 14px; box-sizing: border-box; transition: 0.2s; }
+                        .form-group input:focus, .form-group select:focus { border-color: #a970ff; outline: none; box-shadow: 0 0 8px rgba(169,112,255,0.3); }
+                        
+                        /* МИНИ-ПЛАШКИ ДЛЯ СТАТИСТИКИ С НЕОНОВЫМ СВЕЧЕНИЕМ */
+                        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+                        .stat-card { background: #16161e; border: 1px solid #22222d; padding: 12px 8px; border-radius: 10px; text-align: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
+                        .stat-value { font-size: 18px; font-weight: bold; color: #00ff7f; text-shadow: 0 0 8px rgba(0,255,127,0.3); }
+                        .stat-label { font-size: 11px; color: #adadb8; margin-top: 3px; }
+                        
+                        /* ДИНАМИЧЕСКИЙ БЛОК ВРЕМЕНИ ДЛЯ КОЛЕСА */
+                        #wheelTimeGroup { display: none; margin-top: 10px; animation: fadeIn 0.3s ease-out; }
+                        
+                        /* КНОПКИ УПРАВЛЕНИЯ */
+                        .actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+                        button.btn { font-size: 14px; font-weight: bold; padding: 12px; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+                        button.btn:hover { transform: translateY(-1px); }
+                        .btn-start { background: #00ff7f; color: #070709; }
+                        .btn-start:hover { background: #26ff93; box-shadow: 0 0 15px rgba(0,255,127,0.4); }
+                        .btn-stop { background: #ff4a4a; color: white; }
+                        .btn-stop:hover { background: #ff6666; box-shadow: 0 0 15px rgba(255,74,74,0.4); }
+                        .btn-spin { background: #a970ff; color: white; }
+                        .btn-spin:hover { background: #bd85ff; box-shadow: 0 0 15px rgba(169,112,255,0.4); }
+                        .btn-clear { background: #22222d; color: #adadb8; border: 1px solid #2d2d3d !important; }
+                        .btn-clear:hover { background: #ff3b30; color: white; border-color: #ff3b30 !important; box-shadow: 0 0 15px rgba(255,59,48,0.3); }
+                        
+                        /* КОНТЕЙНЕР ДЛЯ БАРАБАНА С КАРТОЧКАМИ */
+                        .roulette-container { background: #13131a; border: 1px solid #1c1c26; padding: 25px 10px; margin: 15px auto; border-radius: 14px; width: 100%; max-width: 530px; position: relative; overflow: hidden; box-shadow: inset 0 0 20px rgba(0,0,0,0.6); }
                         .roulette-wrapper { width: 100%; overflow: hidden; position: relative; height: 130px; display: flex; align-items: center; }
                         .roulette-line { display: flex; position: absolute; left: 0; top: 0; height: 100%; will-change: transform; }
+                        .user-card { width: 110px; min-width: 110px; height: 120px; margin: 0 5px; background: #16161e; border: 1px solid #22222d; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; }
+                        .user-avatar { width: 46px; height: 45px; border-radius: 50%; background: #a970ff; color: white; font-size: 20px; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; box-shadow: 0 0 8px rgba(169,112,255,0.4); text-transform: uppercase; }
+                        .user-name { font-size: 13px; color: #efeff1; max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                        .roulette-pointer { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid #ffd700; z-index: 10; filter: drop-shadow(0 0 6px rgba(255,213,0,0.6)); }
                         
-                        /* КАРТОЧКА С АВАТАРКОЙ ВНУТРИ ЛЕНТЫ */
-                        .user-card { width: 110px; min-width: 110px; height: 120px; margin: 0 5px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; }
-                        .user-avatar { width: 50px; height: 50px; border-radius: 50%; background: #9146ff; color: white; font-size: 22px; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 0 10px rgba(145, 70, 255, 0.4); text-transform: uppercase; }
-                        .user-name { font-size: 13px; color: #efeff1; max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-                        
-                        /* СТРЕЛКА ПО ЦЕНТРУ РУЛЕТКИ */
-                        .roulette-pointer { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid #ffd700; z-index: 10; filter: drop-shadow(0 0 5px rgba(255,215,0,0.5)); }
-                        
-                        .winner-box { background: #1f1f23; border: 3px solid #9146ff; padding: 25px; margin: 15px auto; border-radius: 12px; width: 100%; max-width: 550px; font-size: 24px; font-weight: bold; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4); box-sizing: border-box; }
-                        .winner-box span { color: #00ff7f; font-size: 38px; display: block; margin-top: 10px; text-shadow: 0 0 10px rgba(0,255,127,0.5); }
-                        .no-winner { border-color: #3a3a3c; color: #adadb8; font-size: 18px; }
-                        .setup-panel { background: #1f1f23; padding: 15px; border-radius: 8px; margin-bottom: 25px; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap; border: 1px solid #2d2d30; width: 100%; max-width: 750px; box-sizing: border-box; }
-                        .setup-panel input, .setup-panel select { background: #141416; border: 1px solid #3a3a3c; color: white; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
-                        .actions { margin: 15px 0; display: flex; justify-content: center; gap: 15px; width: 100%; max-width: 650px; }
-                        button { font-size: 16px; font-weight: bold; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; flex: 1; }
-                        .btn-spin { background: #9146ff; color: white; }
-                        .btn-spin:hover { background: #772ce8; }
-                        .btn-clear { background: #eb0400; color: white; max-width: 150px; }
-                        .btn-clear:hover { background: #ff3b30; }
-                        .btn-start { background: #00ff7f; color: #141416; max-width: 200px; }
-                        .btn-start:hover { background: #00cc66; }
-                        .btn-stop { background: #ffaa00; color: #141416; max-width: 200px; }
-                        .btn-stop:hover { background: #cc8800; }
-                        .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 14px; margin-left: 10px; }
-                        .status-on { background: rgba(0, 255, 127, 0.2); color: #00ff7f; border: 1px solid #00ff7f; }
-                        .status-off { background: rgba(255, 170, 0, 0.2); color: #ffaa00; border: 1px solid #ffaa00; }
-                        
-                        /* ОГРОМНОЕ КОЛЕСО УДАЧИ (450px) */
-                        .wheel-zone { display: none; position: relative; width: 450px; height: 450px; margin: 25px auto; }
-                        canvas { border-radius: 50%; box-shadow: 0 0 25px rgba(0,0,0,0.7); }
-                        .pointer { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 18px solid transparent; border-right: 18px solid transparent; border-top: 30px solid #9146ff; z-index: 10; filter: drop-shadow(0 0 5px rgba(145,70,255,0.5)); }
-                        
-                        table { margin: 25px auto; border-collapse: collapse; width: 100%; max-width: 750px; background: #1f1f23; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-                        th, td { padding: 14px; border: 1px solid #26262c; text-align: left; }
-                        th { background: #26262c; color: #adadb8; }
-                        
-                        @keyframes fadeInRow {
-                            from { opacity: 0; transform: translateY(-10px); background: rgba(145, 70, 255, 0.15); }
-                            to { opacity: 1; transform: translateY(0); background: transparent; }
-                        }
-                        .new-participant-row { animation: fadeInRow 0.6s ease-out forwards; }
-                        #count { transition: transform 0.2s ease; display: inline-block; }
-                        .count-bump { transform: scale(1.3); color: #00ff7f; }
+                        /* КОЛЕСО УДАЧИ (450px) */
+                        .wheel-zone { display: none; position: relative; width: 450px; height: 450px; margin: 15px auto; animation: scaleUp 0.3s ease-out; }
+                        canvas { border-radius: 50%; box-shadow: 0 0 30px rgba(0,0,0,0.8), 0 0 15px rgba(169,112,255,0.1); }
                     </style>
                 </head>
                 <body>
-                    <div class="container">
-                        <h1>Twitch Розыгрыши</h1>
-                        <div class="room-info">
-                            Канал: <strong style="color: #9146ff;">` + channel + `</strong> | 
-                            Комната: <strong style="color: #00ff7f;">` + displayRoomName + `</strong> | 
-                            Статус: <span class="status-badge ` + (isCollecting ? 'status-on' : 'status-off') + `">` + (isCollecting ? '🔴 ИДЕТ СБОР' : '⚪ СБОР ОСТАНОВЛЕН') + `</span> | 
-                            Участников: <strong id="count">` + rows.length + `</strong>
-                        </div>
+                    <!-- ГЛАВНЫЙ ТРЁХКОЛОНОЧНЫЙ ИНТЕРФЕЙС КАК НА СКРИНШОТЕ WELLROLL -->
+                    <div class="dashboard">
                         
-                        <div class="setup-panel">
-                            <form action="/update-settings/` + channel + `?room=` + room + `" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
-                                <label>Ключ чата:</label>
-                                <input type="text" name="command" value="` + currentKeyword + `" style="width:110px; text-align:center;" required>
-                                <label style="margin-left:10px;">Время колеса (сек):</label>
-                                <input type="number" name="spinTime" value="` + currentSpinTime + `" min="2" max="30" style="width:55px; text-align:center;" required>
-                                <button type="submit" style="padding:8px 12px; font-size:13px; background:#2d2d30; color:white; border-radius:4px; border:none; cursor:pointer;">Применить</button>
+                        <!-- КОЛОНКА 1: УПРАВЛЕНИЕ РОЗЫГРЫШЕМ -->
+                        <div class="panel-box">
+                            <div class="panel-title">⚙️ УПРАВЛЕНИЕ РОЗЫГРЫШЕМ</div>
+                            
+                            <form action="/update-settings/` + channel + `?room=` + room + `" method="POST">
+                                <div class="form-group">
+                                    <label>Никнейм стримера</label>
+                                    <input type="text" value="@` + channel + `" disabled style="opacity: 0.6; background: #0c0c10;">
+                                </div>
+                                <div class="form-group">
+                                    <label>Ключевое слово для участия</label>
+                                    <input type="text" name="command" value="` + currentKeyword + `" required autocomplete="off">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Вариант розыгрыша</label>
+                                    <select id="drawMode" onchange="toggleDrawMode()">
+                                        <option value="classic">📼 Розыгрыш — Рулетка (10 сек)</option>
+                                        <option value="wheel_single">🎡 Колесо удачи (Один прокрут)</option>
+                                        <option value="wheel_elimination">🎡 Колесо удачи (На выбывание)</option>
+                                    </select>
+                                </div>
+
+                                <!-- ДИНАМИЧЕСКИЙ БЛОК ВРЕМЕНИ ДЛЯ КОЛЕСА -->
+                                <div class="form-group" id="wheelTimeGroup">
+                                    <label>Время прокрутки колеса (сек)</label>
+                                    <input type="number" name="spinTime" value="` + currentSpinTime + `" min="2" max="30" required>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-spin" style="background: #2a2a35; border: 1px solid #3d3d4d; box-shadow: none; margin-bottom: 20px;">Сохранить настройки</button>
                             </form>
-                            <label style="margin-left:15px;">Вариант розыгрыша:</label>
-                            <select id="drawMode" onchange="toggleDrawMode()">
-                                <option value="classic">📼 Горизонтальная лента</option>
-                                <option value="wheel_single">🎡 Колесо удачи (Один прокрут)</option>
-                                <option value="wheel_elimination">🎡 Колесо удачи (На выбывание)</option>
-                            </select>
+
+                            <!-- НЕОНОВЫЕ ПЛАШКИ СТАТИСТИКИ -->
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value" id="countTop">` + rows.length + `</div>
+                                    <div class="stat-label">УЧАСТНИКОВ</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" style="color: #a970ff; text-shadow: 0 0 8px rgba(169,112,255,0.3);">#` + currentKeyword + `</div>
+                                    <div class="stat-label">КЛЮЧ ЧАТА</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" style="color: ` + (isCollecting ? '#00ff7f' : '#ff4a4a') + `; text-shadow: 0 0 8px ` + (isCollecting ? 'rgba(0,255,127,0.3)' : 'rgba(255,74,74,0.3)') + `;">` + (isCollecting ? 'АКТИВЕН' : 'СТОП') + `</div>
+                                    <div class="stat-label">СТАТУС БОТА</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" style="color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.3);" id="roomNameLabel">` + displayRoomName + `</div>
+                                    <div class="stat-label">КОМНАТА</div>
+                                </div>
+                            </div>
+
+                            <!-- КНОПКИ ДЕЙСТВИЙ ВНИЗУ КОЛОНКИ -->
+                            <div class="actions">
+                                <form action="/toggle-collection/` + channel + `?room=` + room + `" method="POST" style="display:contents;">
+                                    <button type="submit" class="btn ` + (isCollecting ? 'btn-stop' : 'btn-start') + `">` + (isCollecting ? '🛑 ОСТАНОВИТЬ ОТБОР' : '🚀 НАЧАТЬ ОТБОР') + `</button>
+                                </form>
+                                <button class="btn btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ЗАПУСТИТЬ РОЗЫГРЫШ</button>
+                                <button class="btn btn-spin" id="reDrawBtn" onclick="resetAndReDraw()" style="display:none; background: #ffd700; color: #070709; box-shadow: 0 4px 12px rgba(255,215,0,0.3);">🔄 ПЕРЕИГРАТЬ</button>
+                                <form action="/clear/` + channel + `?room=` + room + `" method="POST" onsubmit="return confirm('Очистить комнату?')" style="display:contents;">
+                                    <button type="submit" class="btn btn-clear">Очистить комнату</button>
+                                </form>
+                            </div>
                         </div>
+                        <!-- КОЛОНКА 2: ЦЕНТРАЛЬНАЯ ЗОНА С АНИМАЦИЕЙ -->
+                        <div class="panel-box" style="justify-content: center; min-height: 500px;">
+                            <div class="panel-title">🎬 АНИМАЦИЯ РОЗЫГРЫША</div>
+                            
+                            <div class="winner-box" id="winnerOutput">Победитель еще не выбран</div>
 
-                        <div class="winner-box no-winner" id="winnerOutput">Победитель еще не выбран</div>
+                            <!-- ГОРИЗОНТАЛЬНАЯ ЛЕНТА -->
+                            <div class="roulette-container" id="rouletteZone">
+                                <div class="roulette-pointer"></div>
+                                <div class="roulette-wrapper">
+                                    <div class="roulette-line" id="rouletteLine"></div>
+                                </div>
+                            </div>
 
-                        <!-- НАША ГОРИЗОНТАЛЬНАЯ ЛЕНТА -->
-                        <div class="roulette-container" id="rouletteZone">
-                            <div class="roulette-pointer"></div>
-                            <div class="roulette-wrapper">
-                                <div class="roulette-line" id="rouletteLine"></div>
+                            <!-- УВЕЛИЧЕННОЕ КОЛЕСО -->
+                            <div class="wheel-zone" id="wheelZone">
+                                <div class="pointer"></div>
+                                <canvas id="wheelCanvas" width="450" height="450"></canvas>
                             </div>
                         </div>
 
-                        <!-- НАШЕ УВЕЛИЧЕННОЕ КОЛЕСО -->
-                        <div class="wheel-zone" id="wheelZone">
-                            <div class="pointer"></div>
-                            <canvas id="wheelCanvas" width="450" height="450"></canvas>
+                        <!-- КОЛОНКА 3: УЧАСТНИКИ РОЗЫГРЫША КАК НА СКРИНШОТЕ -->
+                        <div class="panel-box">
+                            <div class="panel-title">👥 УЧАСТНИКИ РОЗЫГРЫША</div>
+                            <div style="overflow-y: auto; flex: 1;" id="tableContainer">
+                                <table id="participantsTable">
+                                    <thead>
+                                        <tr><th style="width: 50px;">#</th><th>НИКНЕЙМ</th><th>ВРЕМЯ</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        ` + tableRows + `
+                                    </tbody>
+                                </table>
+                                
+                                <!-- ПЛАВНАЯ КРАСИВАЯ ЗАГЛУШКА ЕСЛИ СПИСОК ПУСТ -->
+                                <div class="chat-placeholder" id="emptyPlaceholder" style="display: ` + (rows.length === 0 ? 'flex' : 'none') + `; padding-top: 60px;">
+                                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                    <div>Участники появятся здесь после написания ключевого слова в чате</div>
+                                </div>
+                            </div>
+                            <br>
+                            <a href="/" style="color: #adadb8; text-decoration: none; font-size: 13px; font-weight: 500;">← Сменить комнату</a>
                         </div>
 
-                        <div class="actions">
-                            <form action="/toggle-collection/` + channel + `?room=` + room + `" method="POST" style="display:contents;">
-                                <button type="submit" class="` + (isCollecting ? 'btn-stop' : 'btn-start') + `">` + (isCollecting ? '🛑 ОСТАНОВИТЬ СБОР' : '▶ ЗАПУСТИТЬ СБОР') + `</button>
-                            </form>
-                            <button class="btn-spin" id="mainActionBtn" onclick="runDraw()">🎰 ЗАПУСТИТЬ РОЗЫГРЫШ</button>
-                            <form action="/clear/` + channel + `?room=` + room + `" method="POST" onsubmit="return confirm('Вы уверены, что хотите полностью очистить эту комнату?')" style="display:contents;">
-                                <button type="submit" class="btn-clear">Очистить</button>
-                            </form>
-                        </div>
-                        <table id="participantsTable">
-                            <thead>
-                                <tr><th style="width: 50px;">#</th><th>Никнейм зрителя</th><th>Время записи</th></tr>
-                            </thead>
-                            <tbody>
-                                ` + tableRows + `
-                            </tbody>
-                        </table>
-                        <br>
-                        <a href="/" style="color: #adadb8; text-decoration: none; font-size: 14px;">← Вернуться на главную (Сменить комнату)</a>
-                    </div>
+                    </div> <!-- ЗАКРЫТИЕ ДЕШБОРДА -->
                     <script>
                         let participants = ` + JSON.stringify(participantsNames) + `;
                         const room = "` + room + `";
@@ -255,15 +301,20 @@ app.get('/streamer/:channel', (req, res) => {
                             const mode = document.getElementById("drawMode").value;
                             const wheelZone = document.getElementById("wheelZone");
                             const rouletteZone = document.getElementById("rouletteZone");
+                            const wheelTimeGroup = document.getElementById("wheelTimeGroup");
                             const btn = document.getElementById("mainActionBtn");
+                            
+                            // Показываем блок секунд ТОЛЬКО для колеса
                             if (mode === "classic") {
                                 rouletteZone.style.display = "block";
                                 wheelZone.style.display = "none";
+                                wheelTimeGroup.style.display = "none";
                                 btn.innerText = "🎰 ЗАПУСТИТЬ РОЗЫГРЫШ";
                                 buildRouletteLine();
                             } else {
                                 rouletteZone.style.display = "none";
                                 wheelZone.style.display = "block";
+                                wheelTimeGroup.style.display = "block";
                                 btn.innerText = "🎡 ЗАПУСТИТЬ РОЗЫГРЫШ";
                                 drawWheel();
                             }
@@ -272,13 +323,14 @@ app.get('/streamer/:channel', (req, res) => {
                         function buildRouletteLine() {
                             const line = document.getElementById("rouletteLine");
                             line.innerHTML = "";
+                            line.style.transition = "none";
                             line.style.transform = "translateX(0px)";
                             if (participants.length === 0) {
-                                line.innerHTML = '<div style="padding: 50px; color:#adadb8; width:600px;">Лента пуста, ждем участников...</div>';
+                                line.innerHTML = '<div style="padding: 50px; color:#adadb8; width:100%; text-align:center;">Лента пуста, ждем участников...</div>';
                                 return;
                             }
                             let list = [...participants];
-                            while(list.length < 180) { // Генерируем с огромным запасом под 15 секунд прокрутки
+                            while(list.length < 180) { 
                                 list = list.concat(participants);
                             }
                             list.forEach(name => {
@@ -294,46 +346,65 @@ app.get('/streamer/:channel', (req, res) => {
                             const len = participants.length;
                             ctx.clearRect(0,0,450,450);
                             if(len === 0) {
-                                ctx.fillStyle = "#2b2b2f";
+                                ctx.fillStyle = "#16161e";
                                 ctx.beginPath(); ctx.arc(225, 225, 225, 0, 2*Math.PI); ctx.fill();
-                                ctx.fillStyle = "#adadb8"; ctx.font = "18px Segoe UI"; ctx.textAlign = "center";
+                                ctx.fillStyle = "#adadb8"; ctx.font = "16px Segoe UI"; ctx.textAlign = "center";
                                 ctx.fillText("Колесо пустое", 225, 225);
                                 return;
                             }
                             const arc = (2 * Math.PI) / len;
                             for(let i=0; i<len; i++) {
                                 const angle = currentAngle + i * arc;
-                                ctx.fillStyle = i % 2 === 0 ? "#1f1f23" : "#9146ff";
-                                if (i % 2 !== 0) ctx.fillStyle = "#772ce8";
+                                ctx.fillStyle = i % 2 === 0 ? "#16161e" : "#a970ff";
+                                if (i % 2 !== 0) ctx.fillStyle = "#823fff";
                                 ctx.beginPath(); ctx.moveTo(225,225); ctx.arc(225,225,225, angle, angle + arc); ctx.lineTo(225,225); ctx.fill();
                                 ctx.save(); ctx.fillStyle = "white"; ctx.translate(225,225); ctx.rotate(angle + arc/2); ctx.font = "bold 13px Segoe UI"; ctx.textAlign = "right";
                                 let text = participants[i]; if(text.length > 16) text = text.substring(0,14) + "...";
                                 ctx.fillText(text, 210, 4); ctx.restore();
                             }
                         }
+
+                        function resetAndReDraw() {
+                            const line = document.getElementById("rouletteLine");
+                            const winnerBox = document.getElementById("winnerOutput");
+                            const reBtn = document.getElementById("reDrawBtn");
+                            const mainBtn = document.getElementById("mainActionBtn");
+                            
+                            line.style.transition = "none";
+                            line.style.transform = "translateX(0px)";
+                            winnerBox.className = "winner-box";
+                            winnerBox.innerText = "Переигровка запущенна...";
+                            reBtn.style.display = "none";
+                            mainBtn.style.display = "block";
+                            
+                            setTimeout(() => { runDraw(); }, 1500);
+                        }
                         function runDraw() {
                             if (participants.length === 0) return alert("Участников ещё нет!");
                             const mode = document.getElementById("drawMode").value;
                             const winnerBox = document.getElementById("winnerOutput");
-                            const btn = document.getElementById("mainActionBtn");
-                            btn.disabled = true;
+                            const mainBtn = document.getElementById("mainActionBtn");
+                            const reBtn = document.getElementById("reDrawBtn");
+                            mainBtn.disabled = true;
 
                             if (mode === "classic") {
-                                const rouletteSpinTime = 15000; 
+                                const rouletteSpinTime = 10000; // Ровно 10 секунд по дефолту
                                 const line = document.getElementById("rouletteLine");
                                 const cardWidth = 120;
-                                const centerOffset = 325;
+                                const centerOffset = 265; // Центр новой узкой ленты (530px / 2)
                                 const winnerIndex = Math.floor(Math.random() * participants.length);
                                 const winner = participants[winnerIndex];
-                                const cardTargetIndex = participants.length * 12 + winnerIndex;
+                                const cardTargetIndex = participants.length * 15 + winnerIndex; // Огромный множитель скорости
                                 const finalTranslate = -(cardTargetIndex * cardWidth - centerOffset + cardWidth / 2);
                                 
-                                line.style.transition = "transform 15s cubic-bezier(0.05, 0.9, 0.05, 1)";
+                                line.style.transition = "transform 10s cubic-bezier(0.05, 0.9, 0.05, 1)";
                                 line.style.transform = "translateX(" + finalTranslate + "px)";
                                 
                                 setTimeout(() => {
-                                    btn.disabled = false;
-                                    winnerBox.className = "winner-box";
+                                    mainBtn.disabled = false;
+                                    mainBtn.style.display = "none";
+                                    reBtn.style.display = "block"; // Включаем кнопку ПЕРЕИГРАТЬ
+                                    winnerBox.className = "winner-box active";
                                     winnerBox.innerHTML = "🎉 ПОБЕДИТЕЛЬ: <span>" + winner + "</span> 🎉";
                                 }, rouletteSpinTime);
                             } else {
@@ -350,20 +421,20 @@ app.get('/streamer/:channel', (req, res) => {
                                     if (progress < wheelSpinTime) {
                                         requestAnimationFrame(animate);
                                     } else {
-                                        btn.disabled = false;
+                                        mainBtn.disabled = false;
+                                        mainBtn.style.display = "none";
+                                        reBtn.style.display = "block"; // Включаем кнопку ПЕРЕИГРАТЬ
                                         const arc = (2 * Math.PI) / participants.length;
                                         let normalizedAngle = (1.5 * Math.PI - currentAngle) % (2 * Math.PI);
                                         if (normalizedAngle < 0) normalizedAngle += 2 * Math.PI;
                                         const winnerIndex = Math.floor(normalizedAngle / arc) % participants.length;
                                         const winner = participants[winnerIndex];
-                                        winnerBox.className = "winner-box";
+                                        winnerBox.className = "winner-box active";
                                         if (mode === "wheel_elimination" && participants.length > 1) {
                                             winnerBox.innerHTML = "❌ ВЫБЫЛ ИЗ КОЛЕСА: <span>" + winner + "</span>";
                                             participants.splice(winnerIndex, 1);
-                                            const countEl = document.getElementById("count");
-                                            countEl.innerText = participants.length;
-                                            countEl.classList.add("count-bump");
-                                            setTimeout(() => countEl.classList.remove("count-bump"), 200);
+                                            document.getElementById("count").innerText = participants.length;
+                                            document.getElementById("countTop").innerText = participants.length;
                                             setTimeout(() => drawWheel(), 1500);
                                         } else {
                                             winnerBox.innerHTML = "🎉 ПОБЕДИТЕЛЬ: <span>" + winner + "</span> 🎉";
@@ -384,10 +455,24 @@ app.get('/streamer/:channel', (req, res) => {
                                 if (data.length !== participants.length) {
                                     const isNewAdded = data.length > participants.length;
                                     participants = data;
+                                    
                                     const countEl = document.getElementById("count");
+                                    const countTopEl = document.getElementById("countTop");
+                                    const placeholder = document.getElementById("emptyPlaceholder");
+                                    
                                     countEl.innerText = participants.length;
+                                    countTopEl.innerText = participants.length;
+                                    
+                                    if(participants.length > 0) placeholder.style.display = "none";
+                                    else placeholder.style.display = "flex";
+
                                     countEl.classList.add("count-bump");
-                                    setTimeout(() => countEl.classList.remove("count-bump"), 200);
+                                    countTopEl.classList.add("count-bump");
+                                    setTimeout(() => {
+                                        countEl.classList.remove("count-bump");
+                                        countTopEl.classList.remove("count-bump");
+                                    }, 200);
+
                                     const tbody = document.querySelector("#participantsTable tbody");
                                     tbody.innerHTML = "";
                                     fetch("/api/participants-full/" + room).then(r => r.json()).then(fullList => {
@@ -396,7 +481,7 @@ app.get('/streamer/:channel', (req, res) => {
                                             if (isNewAdded && index < (data.length - participants.length)) {
                                                 tr.className = "new-participant-row";
                                             }
-                                            tr.innerHTML = "<td>" + (index + 1) + "</td><td>" + row.username + "</td><td>" + new Date(row.timestamp).toLocaleString() + "</td>";
+                                            tr.innerHTML = "<td>" + (index + 1) + "</td><td>" + row.username + "</td><td>" + new Date(row.timestamp).toLocaleTimeString() + "</td>";
                                             tbody.appendChild(tr);
                                         });
                                     });
@@ -450,7 +535,4 @@ app.post('/clear/:channel', (req, res) => {
     const room = req.query.room;
     db.query('DELETE FROM participants WHERE room_id = $1', [room])
         .then(() => res.redirect('/streamer/' + channel + '?room=' + room))
-        .catch(() => res.redirect('/streamer/' + channel + '?room=' + room));
-});
-
 app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
