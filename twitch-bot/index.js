@@ -251,7 +251,7 @@ app.get('/streamer/:channel', (req, res) => {
                     <script>
                         let participants = ${JSON.stringify(participantsNames)};
                         const room = "${room}";
-                        const spinTimeSeconds = ${currentSpinTime}; // Динамическое время из настроек стримера
+                        const spinTimeSeconds = ' + currentSpinTime + '; // Динамическое время из настроек стримера
                         const canvas = document.getElementById("wheelCanvas");
                         const ctx = canvas.getContext("2d");
                         let currentAngle = 0;
