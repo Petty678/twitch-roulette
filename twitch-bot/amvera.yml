@@ -1,0 +1,7 @@
+meta:
+  environment: nodes
+  toolchain:
+    name: node
+    version: 20
+run:
+  command: node index.js
