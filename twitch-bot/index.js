@@ -218,10 +218,6 @@ app.get('/streamer/:channel', (req, res) => {
                                     <div class="stat-value" style="color: ` + (isCollecting ? '#00ff7f' : '#ff4a4a') + `; text-shadow: 0 0 8px ` + (isCollecting ? 'rgba(0,255,127,0.3)' : 'rgba(255,74,74,0.3)') + `;">` + (isCollecting ? 'АКТИВЕН' : 'СТОП') + `</div>
                                     <div class="stat-label">СТАТУС БОТА</div>
                                 </div>
-                                <div class="stat-card">
-                                    <div class="stat-value" style="color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.3);">` + displayRoomName + `</div>
-                                    <div class="stat-label">КОМНАТА</div>
-                                </div>
                             </div>
                             <div class="actions">
                                 <form action="/toggle-collection/` + channel + `?room=` + room + `" method="POST" style="display:contents;">
