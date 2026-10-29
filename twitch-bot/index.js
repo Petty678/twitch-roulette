@@ -56,7 +56,6 @@ function connectToTwitch(channelName) {
         }
     });
 }
-
 app.get('/', (req, res) => {
     res.send(`
         <!DOCTYPE html>
@@ -80,7 +79,7 @@ app.get('/', (req, res) => {
                 <h1>Twitch Розыгрыши 24/7</h1>
                 <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники внутри комнаты сохраняются неделями!</p>
                 <form action="/login" method="POST">
-                    <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: alsushy)" required autocomplete="off">
+                    <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: strict)" required autocomplete="off">
                     <input type="text" name="room_name" placeholder="Название комнаты (например: sub_giveaway)" required autocomplete="off"><button type="submit">Открыть / Создать комнату</button>
                 </form>
             </div>
@@ -120,7 +119,6 @@ app.get('/streamer/:channel', (req, res) => {
             let tableRows = rows.map((row, index) => 
                 '<tr><td>' + (index + 1) + '</td><td>' + row.username + '</td><td>' + new Date(row.timestamp).toLocaleString() + '</td></tr>'
             ).join('');
-
             res.send(`
                 <!DOCTYPE html>
                 <html>
@@ -132,13 +130,20 @@ app.get('/streamer/:channel', (req, res) => {
                         .container { max-width: 950px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
                         h1 { color: #9146ff; margin-bottom: 5px; font-size: 28px; }
                         .room-info { color: #adadb8; margin-bottom: 20px; font-size: 15px; }
+                        
+                        /* ГОРИЗОНТАЛЬНАЯ ЛЕНТА CS:GO / POINT-AUCTION */
                         .roulette-container { background: #1f1f23; border: 1px solid #2d2d30; padding: 30px 10px; margin: 20px auto; border-radius: 12px; width: 100%; max-width: 650px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.5); overflow: hidden; box-sizing: border-box; }
                         .roulette-wrapper { width: 100%; overflow: hidden; position: relative; height: 130px; display: flex; align-items: center; }
                         .roulette-line { display: flex; position: absolute; left: 0; top: 0; height: 100%; will-change: transform; }
+                        
+                        /* КАРТОЧКА С АВАТАРКОЙ ВНУТРИ ЛЕНТЫ */
                         .user-card { width: 110px; min-width: 110px; height: 120px; margin: 0 5px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; }
                         .user-avatar { width: 50px; height: 50px; border-radius: 50%; background: #9146ff; color: white; font-size: 22px; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 0 10px rgba(145, 70, 255, 0.4); text-transform: uppercase; }
                         .user-name { font-size: 13px; color: #efeff1; max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+                        
+                        /* СТРЕЛКА ПО ЦЕНТРУ РУЛЕТКИ */
                         .roulette-pointer { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid #ffd700; z-index: 10; filter: drop-shadow(0 0 5px rgba(255,215,0,0.5)); }
+                        
                         .winner-box { background: #1f1f23; border: 3px solid #9146ff; padding: 25px; margin: 15px auto; border-radius: 12px; width: 100%; max-width: 550px; font-size: 24px; font-weight: bold; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4); box-sizing: border-box; }
                         .winner-box span { color: #00ff7f; font-size: 38px; display: block; margin-top: 10px; text-shadow: 0 0 10px rgba(0,255,127,0.5); }
                         .no-winner { border-color: #3a3a3c; color: #adadb8; font-size: 18px; }
@@ -154,19 +159,19 @@ app.get('/streamer/:channel', (req, res) => {
                         .btn-start:hover { background: #00cc66; }
                         .btn-stop { background: #ffaa00; color: #141416; max-width: 200px; }
                         .btn-stop:hover { background: #cc8800; }
-                        .btn-start { background: #00ff7f; color: #141416; max-width: 200px; }
-                        .btn-start:hover { background: #00cc66; }
-                        .btn-stop { background: #ffaa00; color: #141416; max-width: 200px; }
-                        .btn-stop:hover { background: #cc8800; }
                         .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 14px; margin-left: 10px; }
                         .status-on { background: rgba(0, 255, 127, 0.2); color: #00ff7f; border: 1px solid #00ff7f; }
                         .status-off { background: rgba(255, 170, 0, 0.2); color: #ffaa00; border: 1px solid #ffaa00; }
+                        
+                        /* ОГРОМНОЕ КОЛЕСО УДАЧИ (450px) */
                         .wheel-zone { display: none; position: relative; width: 450px; height: 450px; margin: 25px auto; }
                         canvas { border-radius: 50%; box-shadow: 0 0 25px rgba(0,0,0,0.7); }
                         .pointer { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 18px solid transparent; border-right: 18px solid transparent; border-top: 30px solid #9146ff; z-index: 10; filter: drop-shadow(0 0 5px rgba(145,70,255,0.5)); }
+                        
                         table { margin: 25px auto; border-collapse: collapse; width: 100%; max-width: 750px; background: #1f1f23; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
                         th, td { padding: 14px; border: 1px solid #26262c; text-align: left; }
                         th { background: #26262c; color: #adadb8; }
+                        
                         @keyframes fadeInRow {
                             from { opacity: 0; transform: translateY(-10px); background: rgba(145, 70, 255, 0.15); }
                             to { opacity: 1; transform: translateY(0); background: transparent; }
@@ -190,7 +195,7 @@ app.get('/streamer/:channel', (req, res) => {
                             <form action="/update-settings/` + channel + `?room=` + room + `" method="POST" style="display:inline-flex; align-items:center; gap:8px;">
                                 <label>Ключ чата:</label>
                                 <input type="text" name="command" value="` + currentKeyword + `" style="width:110px; text-align:center;" required>
-                                <label style="margin-left:10px;">Время (сек):</label>
+                                <label style="margin-left:10px;">Время колеса (сек):</label>
                                 <input type="number" name="spinTime" value="` + currentSpinTime + `" min="2" max="30" style="width:55px; text-align:center;" required>
                                 <button type="submit" style="padding:8px 12px; font-size:13px; background:#2d2d30; color:white; border-radius:4px; border:none; cursor:pointer;">Применить</button>
                             </form>
@@ -204,7 +209,7 @@ app.get('/streamer/:channel', (req, res) => {
 
                         <div class="winner-box no-winner" id="winnerOutput">Победитель еще не выбран</div>
 
-                        <!-- РУЛЕТКА CS:GO / POINT-AUCTION -->
+                        <!-- НАША ГОРИЗОНТАЛЬНАЯ ЛЕНТА -->
                         <div class="roulette-container" id="rouletteZone">
                             <div class="roulette-pointer"></div>
                             <div class="roulette-wrapper">
@@ -212,7 +217,7 @@ app.get('/streamer/:channel', (req, res) => {
                             </div>
                         </div>
 
-                        <!-- НАШЕ БОЛЬШОЕ КОЛЕСО -->
+                        <!-- НАШЕ УВЕЛИЧЕННОЕ КОЛЕСО -->
                         <div class="wheel-zone" id="wheelZone">
                             <div class="pointer"></div>
                             <canvas id="wheelCanvas" width="450" height="450"></canvas>
@@ -273,7 +278,7 @@ app.get('/streamer/:channel', (req, res) => {
                                 return;
                             }
                             let list = [...participants];
-                            while(list.length < 150) {
+                            while(list.length < 180) { // Генерируем с огромным запасом под 15 секунд прокрутки
                                 list = list.concat(participants);
                             }
                             list.forEach(name => {
@@ -306,43 +311,43 @@ app.get('/streamer/:channel', (req, res) => {
                                 ctx.fillText(text, 210, 4); ctx.restore();
                             }
                         }
-
                         function runDraw() {
                             if (participants.length === 0) return alert("Участников ещё нет!");
                             const mode = document.getElementById("drawMode").value;
                             const winnerBox = document.getElementById("winnerOutput");
-                            const spinTime = spinTimeSeconds * 1000;
                             const btn = document.getElementById("mainActionBtn");
                             btn.disabled = true;
 
                             if (mode === "classic") {
+                                const rouletteSpinTime = 15000; 
                                 const line = document.getElementById("rouletteLine");
                                 const cardWidth = 120;
                                 const centerOffset = 325;
                                 const winnerIndex = Math.floor(Math.random() * participants.length);
                                 const winner = participants[winnerIndex];
-                                const cardTargetIndex = participants.length * 4 + winnerIndex;
+                                const cardTargetIndex = participants.length * 12 + winnerIndex;
                                 const finalTranslate = -(cardTargetIndex * cardWidth - centerOffset + cardWidth / 2);
                                 
-                                line.style.transition = "transform " + spinTimeSeconds + "s cubic-bezier(0.1, 0.8, 0.1, 1)";
+                                line.style.transition = "transform 15s cubic-bezier(0.05, 0.9, 0.05, 1)";
                                 line.style.transform = "translateX(" + finalTranslate + "px)";
                                 
                                 setTimeout(() => {
                                     btn.disabled = false;
                                     winnerBox.className = "winner-box";
                                     winnerBox.innerHTML = "🎉 ПОБЕДИТЕЛЬ: <span>" + winner + "</span> 🎉";
-                                }, spinTime);
+                                }, rouletteSpinTime);
                             } else {
+                                const wheelSpinTime = spinTimeSeconds * 1000;
                                 let startTime = null;
                                 const totalRotation = Math.PI * 2 * (4 + Math.random() * 4);
                                 function animate(timestamp) {
                                     if (!startTime) startTime = timestamp;
                                     const progress = timestamp - startTime;
-                                    const durationProgress = Math.min(progress / spinTime, 1);
+                                    const durationProgress = Math.min(progress / wheelSpinTime, 1);
                                     const easeOut = 1 - Math.pow(1 - durationProgress, 4);
                                     currentAngle = easeOut * totalRotation;
                                     drawWheel();
-                                    if (progress < spinTime) {
+                                    if (progress < wheelSpinTime) {
                                         requestAnimationFrame(animate);
                                     } else {
                                         btn.disabled = false;
