@@ -80,7 +80,7 @@ app.get('/', (req, res) => {
                 <h1>Twitch Розыгрыши 24/7</h1>
                 <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники внутри комнаты сохраняются неделями!</p>
                 <form action="/login" method="POST">
-                    <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: strict)" required autocomplete="off">
+                    <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: alsushy)" required autocomplete="off">
                     <input type="text" name="room_name" placeholder="Название комнаты (например: sub_giveaway)" required autocomplete="off"><button type="submit">Открыть / Создать комнату</button>
                 </form>
             </div>
