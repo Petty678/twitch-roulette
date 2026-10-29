@@ -76,7 +76,7 @@ app.get('/', (req, res) => {
         </head>
         <body>
             <div class="login-box">
-                <h1>Twitch Розыгрыши 24/7</h1>
+                <h1>Twitch Розыгрыши 24/7 (НАХОДИТСЯ В РАЗРАБОТКЕ)</h1>
                 <p>Введите ваш ник на Твиче и придумайте имя комнаты. Участники внутри комнаты сохраняются неделями!</p>
                 <form action="/login" method="POST">
                     <input type="text" name="twitch_username" placeholder="Никнейм стримера (например: strict)" required autocomplete="off">
